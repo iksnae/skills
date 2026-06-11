@@ -1,0 +1,32 @@
+{
+  "name": "@iksnae/skills",
+  "version": "0.1.0",
+  "description": "Reusable Claude Code skills, commands, tools, and templates — install via npx or as a Claude Code plugin.",
+  "license": "MIT",
+  "author": "iksnae",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iksnae/skills.git"
+  },
+  "homepage": "https://github.com/iksnae/skills#readme",
+  "type": "module",
+  "bin": {
+    "iksnae-skills": "bin/cli.mjs"
+  },
+  "files": [
+    "bin/",
+    "plugins/",
+    ".claude-plugin/",
+    "templates/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude-code",
+    "skills",
+    "agent-skills",
+    "claude",
+    "plugin"
+  ]
+}
