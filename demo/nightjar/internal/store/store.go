@@ -108,6 +108,25 @@ func (s *Store) Get(id string) (Paste, error) {
 	return Paste{}, ErrNotFound
 }
 
+// Remove deletes the paste with the given id, returning ErrNotFound
+// if no paste matches.
+func (s *Store) Remove(id string) error {
+	pastes, err := s.Load()
+	if err != nil {
+		return err
+	}
+	kept := pastes[:0]
+	for _, p := range pastes {
+		if p.ID != id {
+			kept = append(kept, p)
+		}
+	}
+	if len(kept) == len(pastes) {
+		return ErrNotFound
+	}
+	return s.Save(kept)
+}
+
 func newID() string {
 	const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
 	b := make([]byte, 6)

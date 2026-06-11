@@ -95,6 +95,48 @@ func TestLoadNewestFirst(t *testing.T) {
 	}
 }
 
+func TestRemove(t *testing.T) {
+	st := New(t.TempDir())
+	keep, err := st.Add("keep me")
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	doomed, err := st.Add("remove me")
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := st.Remove(doomed.ID); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, err := st.Get(doomed.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Get(removed) err = %v, want ErrNotFound", err)
+	}
+	got, err := st.Get(keep.ID)
+	if err != nil {
+		t.Fatalf("Get(kept): %v", err)
+	}
+	if got.Content != "keep me" {
+		t.Errorf("kept Content = %q, want %q", got.Content, "keep me")
+	}
+}
+
+func TestRemoveNotFound(t *testing.T) {
+	st := New(t.TempDir())
+	if _, err := st.Add("something"); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := st.Remove("zzzzzz"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestRemoveFromEmptyStore(t *testing.T) {
+	st := New(t.TempDir())
+	if err := st.Remove("zzzzzz"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+}
+
 func TestNewIDCharset(t *testing.T) {
 	const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
 	for i := 0; i < 20; i++ {
