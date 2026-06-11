@@ -1,0 +1,10 @@
+flowchart LR
+  repo["iksnae/skills"] --> claude["claude code<br/>.claude/skills"]
+  repo --> agents["~/.agents/skills<br/>codex - pi - cursor - more"]
+  repo --> npx["npx skills add"]
+  claude --> run["skill runs"]
+  agents --> run
+  npx --> run
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class repo accent
+  linkStyle 2 stroke:#FFCC00
