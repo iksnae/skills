@@ -1,0 +1,96 @@
+// Command nj is a tiny terminal pastebin.
+package main
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/iksnae/skills/demo/nightjar/internal/store"
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(2)
+	}
+	st := store.New("")
+	switch os.Args[1] {
+	case "add":
+		cmdAdd(st, os.Args[2:])
+	case "list":
+		cmdList(st)
+	case "get":
+		cmdGet(st, os.Args[2:])
+	default:
+		fmt.Fprintf(os.Stderr, "nj: unknown command %q\n", os.Args[1])
+		os.Exit(2)
+	}
+}
+
+func usage() {
+	fmt.Fprintln(os.Stderr, "usage: nj <add|list|get> [args]")
+}
+
+func cmdAdd(st *store.Store, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: nj add <file|->")
+		os.Exit(2)
+	}
+	var data []byte
+	var err error
+	if args[0] == "-" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(args[0])
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	p, err := st.Add(string(data))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Println(p.ID)
+}
+
+func cmdList(st *store.Store) {
+	pastes, err := st.Load()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	for _, p := range pastes {
+		snippet := p.Content
+		if i := strings.IndexByte(snippet, '\n'); i >= 0 {
+			snippet = snippet[:i]
+		}
+		if len(snippet) > 40 {
+			snippet = snippet[:40] + "..."
+		}
+		when := time.Unix(p.Created, 0).Format(time.RFC822)
+		fmt.Printf("%s  %s  %s\n", p.ID, when, snippet)
+	}
+	fmt.Printf("%d pastes\n", len(pastes))
+}
+
+func cmdGet(st *store.Store, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: nj get <id>")
+		os.Exit(2)
+	}
+	p, err := st.Get(args[0])
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Print(p.Content)
+}
