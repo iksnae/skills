@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -43,8 +44,8 @@ func (s *Store) File() string {
 	return filepath.Join(s.dir, "pastes.json")
 }
 
-// Load returns all pastes currently on disk. A missing file is treated
-// as an empty store.
+// Load returns all pastes currently on disk, newest first. A missing
+// file is treated as an empty store.
 func (s *Store) Load() ([]Paste, error) {
 	data, err := os.ReadFile(s.File())
 	if err != nil {
@@ -57,6 +58,9 @@ func (s *Store) Load() ([]Paste, error) {
 	if err := json.Unmarshal(data, &pastes); err != nil {
 		return nil, err
 	}
+	sort.Slice(pastes, func(i, j int) bool {
+		return pastes[i].Created > pastes[j].Created
+	})
 	return pastes, nil
 }
 

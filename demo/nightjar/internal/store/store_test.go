@@ -73,6 +73,28 @@ func TestAddPersistsAcrossInstances(t *testing.T) {
 	}
 }
 
+func TestLoadNewestFirst(t *testing.T) {
+	st := New(t.TempDir())
+	seed := []Paste{
+		{ID: "aaaaaa", Content: "oldest", Created: 100},
+		{ID: "cccccc", Content: "newest", Created: 300},
+		{ID: "bbbbbb", Content: "middle", Created: 200},
+	}
+	if err := st.Save(seed); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	pastes, err := st.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := []string{"cccccc", "bbbbbb", "aaaaaa"}
+	for i, id := range want {
+		if pastes[i].ID != id {
+			t.Errorf("pastes[%d].ID = %q, want %q", i, pastes[i].ID, id)
+		}
+	}
+}
+
 func TestNewIDCharset(t *testing.T) {
 	const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
 	for i := 0; i < 20; i++ {
