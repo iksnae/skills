@@ -47,7 +47,6 @@ Harness-specific paths also work: `~/.codex/skills` (Codex), `~/.pi/agent/skills
 
 | Skill | What it does |
 |---|---|
-| `graphify` | Turn any folder (code, docs, papers, media) into a navigable knowledge graph with community detection, query/path/explain tools, and HTML/JSON/Neo4j exports. |
 | `certify` | Score every code unit in a repo across 9 quality dimensions; produces a graded report card and prioritized remediation plan. |
 | `repo-audit` | Health / due-diligence audit of an unfamiliar repository — the default opening move on a new codebase. |
 | `market-scout` | Comparative research: fan out searches per candidate, adversarially verify claims, return a ranked, cited scorecard. Includes a bundled Workflow script. |
