@@ -3,12 +3,14 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/iksnae/skills/demo/nightjar/internal/server"
 	"github.com/iksnae/skills/demo/nightjar/internal/store"
 )
 
@@ -25,6 +27,8 @@ func main() {
 		cmdList(st)
 	case "get":
 		cmdGet(st, os.Args[2:])
+	case "serve":
+		cmdServe(st, os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "nj: unknown command %q\n", os.Args[1])
 		os.Exit(2)
@@ -32,7 +36,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: nj <add|list|get> [args]")
+	fmt.Fprintln(os.Stderr, "usage: nj <add|list|get|serve> [args]")
 }
 
 func cmdAdd(st *store.Store, args []string) {
@@ -93,4 +97,16 @@ func cmdGet(st *store.Store, args []string) {
 		os.Exit(1)
 	}
 	fmt.Print(p.Content)
+}
+
+func cmdServe(st *store.Store, args []string) {
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	addr := fs.String("addr", "127.0.0.1:8420", "listen address")
+	_ = fs.Parse(args)
+	srv := server.New(st)
+	fmt.Printf("nightjar listening on http://%s\n", *addr)
+	if err := srv.ListenAndServe(*addr); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
