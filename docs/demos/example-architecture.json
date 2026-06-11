@@ -1,0 +1,18 @@
+{
+  "schema": "image-gen-receipt-v1",
+  "ts": "2026-06-11T19:19:45Z",
+  "prompt_raw": "a technical architecture composition for nightjar the tiny terminal pastebin: three surface panels labeled cli, api, web above one store panel labeled pastes.json, connection lines, monospace labels.",
+  "prompt_final": "Dark CRT terminal aesthetic on near-black `#0a0a0a`. Flat color only: surfaces\n`#161616`, hairline strokes `#2a2a2a`, text `#e8e8e8`, single yellow accent\n`#FFCC00` used sparingly. Monospace labels, terse. Diagrams and technical\ncompositions only \u2014 no characters, scenes, or illustrations. No gradients, no\nshadows, no glow, no rounded corners, no neon or synthwave. Quiet terminal\naesthetic.\n\na technical architecture composition for nightjar the tiny terminal pastebin: three surface panels labeled cli, api, web above one store panel labeled pastes.json, connection lines, monospace labels.",
+  "prompt_hash": "5c80d6453b597e2f5804f06514751be944b2ffbc411ead05755f6cdd82254e12",
+  "style_injected": true,
+  "no_style": false,
+  "out": "/Users/khaos/Projects/iksnae-skills/docs/demos/example-architecture.png",
+  "out_path": "docs/demos/example-architecture.png",
+  "size": "1536x1024",
+  "quality": "medium",
+  "model": "gpt-image-2",
+  "cost_estimate": 0.03,
+  "caller_pid": 80209,
+  "ok": true,
+  "error": null
+}

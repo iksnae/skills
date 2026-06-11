@@ -1,0 +1,40 @@
+{
+  "schema": "remotion-render-receipt-v1",
+  "id": "0900431a-2ec6-421b-827a-c68eff598c9c",
+  "started_at": "2026-06-11T19:20:39Z",
+  "finished_at": "2026-06-11T19:20:44Z",
+  "duration_sec": 4.97,
+  "ok": true,
+  "error": null,
+  "exit_code": 0,
+  "tool": {
+    "name": "render_remotion.py",
+    "command": [
+      "npx",
+      "--yes",
+      "remotion",
+      "render",
+      "/Users/khaos/Projects/iksnae-skills/demo/remotion/src/index.ts",
+      "NightjarLaunchCard",
+      "/Users/khaos/Projects/iksnae-skills/docs/demos/nightjar-launch-card.mp4",
+      "--codec=h264",
+      "--log=error",
+      "--jpeg-quality=85",
+      "--concurrency=4"
+    ]
+  },
+  "project": "/Users/khaos/Projects/iksnae-skills/demo/remotion",
+  "entry": "src/index.ts",
+  "composition": "NightjarLaunchCard",
+  "tier": "default",
+  "tier_doc": "Balanced. Suitable for review + most ship paths.",
+  "codec": "h264",
+  "concurrency": 4,
+  "frames": null,
+  "out": "/Users/khaos/Projects/iksnae-skills/docs/demos/nightjar-launch-card.mp4",
+  "out_size_bytes": 923428,
+  "props_file": null,
+  "props_sha256": null,
+  "stderr_tail": "",
+  "retries": []
+}

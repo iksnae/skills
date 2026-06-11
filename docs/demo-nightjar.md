@@ -40,5 +40,12 @@ Every artifact below lives in [`docs/demos/`](demos/) and was produced by a real
 | [nightjar-launch-note.mp3.receipt.json](demos/nightjar-launch-note.mp3.receipt.json) | article-audio | TTS receipt for the narration |
 | [nightjar-title-card.spec.md](demos/nightjar-title-card.spec.md) | remotion-author | Remotion composition spec for the nightjar title card |
 | [component-registry.md](demos/component-registry.md) | remotion-author | Component registry backing the title-card spec |
+| [nightjar-title-card.mp4](demos/nightjar-title-card.mp4) | remotion-render | The title card rendered for real — 150 frames, 1080p, via the bundled script |
+| [nightjar-launch-card.mp4](demos/nightjar-launch-card.mp4) | remotion-with-image | Composite render: the generated hero still inside a Remotion video |
+| [example-architecture.png](demos/example-architecture.png) | image-generate | Generated architecture composition of nightjar's three surfaces |
+| [example-concept.png](demos/example-concept.png) | image-generate | Generated concept image for chaos engineering |
+| [example-social-card.png](demos/example-social-card.png) | image-generate | Generated social preview card for this repo |
+
+The video pipeline ran end to end: spec → lint → [Remotion Studio](assets/remotion-studio-titlecard.png) → render receipts. Image receipts sit beside each PNG in `demos/`.
 
 ![demo world](assets/demo-nightjar.png)

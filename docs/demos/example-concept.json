@@ -1,0 +1,18 @@
+{
+  "schema": "image-gen-receipt-v1",
+  "ts": "2026-06-11T19:21:01Z",
+  "prompt_raw": "abstract concept image for \"chaos engineering\": a small dark grid of terminal tiles with one tile fracturing into noise, single #FFCC00 accent on the fractured tile.",
+  "prompt_final": "Dark CRT terminal aesthetic on near-black `#0a0a0a`. Flat color only: surfaces\n`#161616`, hairline strokes `#2a2a2a`, text `#e8e8e8`, single yellow accent\n`#FFCC00` used sparingly. Monospace labels, terse. Diagrams and technical\ncompositions only \u2014 no characters, scenes, or illustrations. No gradients, no\nshadows, no glow, no rounded corners, no neon or synthwave. Quiet terminal\naesthetic.\n\nabstract concept image for \"chaos engineering\": a small dark grid of terminal tiles with one tile fracturing into noise, single #FFCC00 accent on the fractured tile.",
+  "prompt_hash": "8bacfd32263003d8bcfd6fb033a8bc23572e0fe2f5300191648bd82adbc1b881",
+  "style_injected": true,
+  "no_style": false,
+  "out": "/Users/khaos/Projects/iksnae-skills/docs/demos/example-concept.png",
+  "out_path": "docs/demos/example-concept.png",
+  "size": "1024x1024",
+  "quality": "medium",
+  "model": "gpt-image-2",
+  "cost_estimate": 0.02,
+  "caller_pid": 80856,
+  "ok": true,
+  "error": null
+}

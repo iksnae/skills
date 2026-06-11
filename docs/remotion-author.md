@@ -92,7 +92,21 @@ The linter run reported `lint_remotion_spec: nightjar-title-card.spec.md clean`
 (exit 0). Every structural invariant held — frontmatter keys present, duration
 math matched (60+60+30=150), every scene had a BEATS block, frames were monotonic
 and within their scene windows, density was satisfied, and all components
-resolved. No full render was attempted, since no Remotion project scaffold exists
-in this repo; the clean lint stands in as the receipt.
+resolved.
+
+The spec was then translated mechanically into a real composition — the BEATS
+const lifted verbatim into `demo/remotion/src/NightjarTitleCard.tsx`, tokens
+centralized in `brand.ts` (`--check-tokens` clean) — and rendered for real via
+the bundled `render_remotion.py` (150 frames, 1080p h264, 249 KB, 3.6 s render):
+
+![nightjar title card poster](assets/nightjar-title-card-poster.png)
+
+The authored spec, open in Remotion Studio — preview canvas on the hold scene
+(frame 90 of 150) with the timeline and playhead below:
+
+![NightjarTitleCard in Remotion Studio — timeline and preview at frame 90](assets/remotion-studio-titlecard.png)
+
+[Watch the render](demos/nightjar-title-card.mp4) — receipt beside it at
+`demos/nightjar-title-card.mp4.receipt.json`.
 
 Full report: [demos/media-skills-nightjar.md](demos/media-skills-nightjar.md)

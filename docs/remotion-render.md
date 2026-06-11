@@ -84,21 +84,31 @@ machines with under 16 GB RAM to avoid an OOM.
 
 ## Demo
 
-The bundled linter was exercised; a full video render was not. No Remotion
-project scaffold (`package.json` + `src/`) exists in this repo, which
-`render_remotion.py` requires — so the demo run instead linted the title-card
-spec that `remotion-author` produced.
+Both bundled scripts were exercised for real. The linter first
+(`lint_remotion_spec: nightjar-title-card.spec.md clean`, exit 0 — see
+[demos/nightjar-title-card.spec.md](demos/nightjar-title-card.spec.md)), then
+the render wrapper against the project scaffold at `demo/remotion/`:
 
 ```bash
-python3 skills/remotion-render/scripts/lint_remotion_spec.py \
-  --spec docs/demos/nightjar-title-card.spec.md \
-  --registry docs/demos/component-registry.md
+python3 skills/remotion-render/scripts/render_remotion.py \
+  --project demo/remotion \
+  --composition NightjarTitleCard \
+  --out docs/demos/nightjar-title-card.mp4 \
+  --tier default --concurrency 4
 ```
 
-It reported `lint_remotion_spec: nightjar-title-card.spec.md clean` (exit 0) —
-see [demos/nightjar-title-card.spec.md](demos/nightjar-title-card.spec.md). The
-clean lint pass stands in as this skill's receipt; the render step itself was the
-one deliberate non-run in the media demo, omitted because no project scaffold
-exists to render against.
+Two compositions rendered, both `ok: true`, `exit_code: 0`, default tier
+(h264, jpeg-quality 85), receipts beside the videos:
+
+- [nightjar-title-card.mp4](demos/nightjar-title-card.mp4) — 150 frames,
+  1920×1080 @ 30 fps, 249 KB, rendered in 3.6 s.
+- [nightjar-launch-card.mp4](demos/nightjar-launch-card.mp4) — 180 frames,
+  1920×1080 @ 30 fps, 923 KB, rendered in 5.0 s.
+
+![nightjar title card poster](assets/nightjar-title-card-poster.png)
+
+A 12 fps preview of the full title card (52 KB):
+
+![nightjar title card preview](assets/nightjar-title-card-preview.gif)
 
 Full report: [demos/media-skills-nightjar.md](demos/media-skills-nightjar.md)

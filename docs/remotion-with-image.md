@@ -85,19 +85,29 @@ stills.
 
 ## Demo
 
-This composite pipeline was demonstrated by its two halves rather than a single
-end-to-end render, because no Remotion project scaffold exists in this repo to
-render against.
+The full pipeline ran end-to-end: a generated still placed under
+`<project>/public/`, referenced via `staticFile()`, rendered to MP4.
 
-The image half is shown by the repo's own hero stills, generated via
-`image-generate` with the style brief auto-injected from `DESIGN.md` — both
-receipts confirmed `"style_injected": true`, exactly the property this pipeline
-relies on for static-layer brand consistency, at a combined ~$0.06. The
-authoring-and-lint half is shown by
-[demos/nightjar-title-card.spec.md](demos/nightjar-title-card.spec.md), which
-linted clean (exit 0): `fps: 30`, `duration_frames: 150`, three scenes summing to
-150, a single `#FFCC00` accent. Composing the two — a generated still under
-`public/` referenced by a clean, token-safe spec — is exactly the workflow this
-skill chains.
+The still is `docs/assets/hero-nightjar.png`, generated via `image-generate`
+with the style brief auto-injected from `DESIGN.md` (receipt confirms
+`"style_injected": true`, ~$0.03). It was copied to
+`demo/remotion/public/hero-nightjar.png` and composed into
+`NightjarLaunchCard` (`demo/remotion/src/NightjarLaunchCard.tsx`): wordmark
+scene → the hero still revealed with a gentle spring scale-in under a `#FFCC00`
+rule → a closing `iksnae/skills` tag. Tokens live in `brand.ts`
+(`--check-tokens` clean); the render went through the bundled
+`render_remotion.py` — 180 frames, 1920×1080 @ 30 fps h264, 923 KB, rendered in
+5.0 s, receipt `ok: true`.
+
+![nightjar launch card poster — hero scene](assets/nightjar-launch-card-poster.png)
+
+The authored composition, open in Remotion Studio — preview canvas on the hero
+scene (frame 110 of 180, the `staticFile()` still under the accent rule) with
+the timeline and playhead below:
+
+![NightjarLaunchCard in Remotion Studio — timeline and preview at frame 110](assets/remotion-studio-launchcard.png)
+
+[Watch the render](demos/nightjar-launch-card.mp4) — receipt beside it at
+`demos/nightjar-launch-card.mp4.receipt.json`.
 
 Full report: [demos/media-skills-nightjar.md](demos/media-skills-nightjar.md)

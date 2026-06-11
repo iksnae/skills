@@ -1,0 +1,18 @@
+{
+  "schema": "image-gen-receipt-v1",
+  "ts": "2026-06-11T19:21:54Z",
+  "prompt_raw": "social preview card for the iksnae/skills repository: the text \"iksnae/skills\" in monospace as the focal point on near-black, thin #FFCC00 underline rule, small scattered skill-name tags in dim gray.",
+  "prompt_final": "Dark CRT terminal aesthetic on near-black `#0a0a0a`. Flat color only: surfaces\n`#161616`, hairline strokes `#2a2a2a`, text `#e8e8e8`, single yellow accent\n`#FFCC00` used sparingly. Monospace labels, terse. Diagrams and technical\ncompositions only \u2014 no characters, scenes, or illustrations. No gradients, no\nshadows, no glow, no rounded corners, no neon or synthwave. Quiet terminal\naesthetic.\n\nsocial preview card for the iksnae/skills repository: the text \"iksnae/skills\" in monospace as the focal point on near-black, thin #FFCC00 underline rule, small scattered skill-name tags in dim gray.",
+  "prompt_hash": "7115bfc77e7675638b4ee998ec34533ef4870494a108f927d25b001996bb5c60",
+  "style_injected": true,
+  "no_style": false,
+  "out": "/Users/khaos/Projects/iksnae-skills/docs/demos/example-social-card.png",
+  "out_path": "docs/demos/example-social-card.png",
+  "size": "1536x1024",
+  "quality": "medium",
+  "model": "gpt-image-2",
+  "cost_estimate": 0.03,
+  "caller_pid": 86418,
+  "ok": true,
+  "error": null
+}

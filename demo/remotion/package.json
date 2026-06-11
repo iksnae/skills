@@ -1,0 +1,21 @@
+{
+  "name": "nightjar-remotion-demos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remotion demo compositions for the iksnae/skills media-skill dogfood (nightjar title + launch cards).",
+  "scripts": {
+    "studio": "remotion studio",
+    "render:title": "remotion render src/index.ts NightjarTitleCard ../../docs/demos/nightjar-title-card.mp4",
+    "render:launch": "remotion render src/index.ts NightjarLaunchCard ../../docs/demos/nightjar-launch-card.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.5.0"
+  }
+}

@@ -96,4 +96,43 @@ retries. Each receipt confirmed `"style_injected": true` and
 `"cost_estimate": 0.03` — combined image spend was about $0.06. The yellow accent
 landed on exactly one element in each composition, as the brief asks.
 
+### Gallery
+
+Three more examples, all generated from the repo root at quality `medium`,
+model `gpt-image-2`, with the `DESIGN.md` → `## Image voice` brief
+auto-injected. Each succeeded on the first attempt.
+
+**Architecture composition** — `demos/example-architecture.png`
+
+![architecture example](demos/example-architecture.png)
+
+```
+a technical architecture composition for nightjar the tiny terminal pastebin: three surface panels labeled cli, api, web above one store panel labeled pastes.json, connection lines, monospace labels.
+```
+
+Receipt `demos/example-architecture.json`: model `gpt-image-2`, size
+`1536x1024`, `"style_injected": true`, `"cost_estimate": 0.03`.
+
+**Concept image** — `demos/example-concept.png`
+
+![concept example](demos/example-concept.png)
+
+```
+abstract concept image for "chaos engineering": a small dark grid of terminal tiles with one tile fracturing into noise, single #FFCC00 accent on the fractured tile.
+```
+
+Receipt `demos/example-concept.json`: model `gpt-image-2`, size
+`1024x1024`, `"style_injected": true`, `"cost_estimate": 0.02`.
+
+**Social preview card** — `demos/example-social-card.png`
+
+![social card example](demos/example-social-card.png)
+
+```
+social preview card for the iksnae/skills repository: the text "iksnae/skills" in monospace as the focal point on near-black, thin #FFCC00 underline rule, small scattered skill-name tags in dim gray.
+```
+
+Receipt `demos/example-social-card.json`: model `gpt-image-2`, size
+`1536x1024`, `"style_injected": true`, `"cost_estimate": 0.03`.
+
 Full report: [demos/media-skills-nightjar.md](demos/media-skills-nightjar.md)

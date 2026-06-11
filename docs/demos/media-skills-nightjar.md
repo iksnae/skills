@@ -140,4 +140,107 @@ Nothing failed. All three image/audio generations succeeded on the
 first attempt, no retries were needed, and the spec linted clean. The
 only deliberate non-run is the full Remotion video render, omitted by
 instruction because no project scaffold exists — the lint pass stands
-in as that skill's receipt.
+in as that skill's receipt. *(Superseded — see the Renders addendum
+below: the scaffold now exists and both renders ran for real.)*
+
+## Image examples addendum
+
+A second `image-generate` pass on 2026-06-11 added three standalone
+examples for the skill's doc gallery. All ran from the repo root (style
+brief auto-injected from `DESIGN.md` → `## Image voice`), quality
+`medium`, model `gpt-image-2`. Every receipt confirms
+`"style_injected": true`. All three succeeded on the first attempt; no
+retries were needed.
+
+```bash
+python3 skills/image-generate/scripts/generate_image.py \
+  --prompt "a technical architecture composition for nightjar the tiny terminal pastebin: three surface panels labeled cli, api, web above one store panel labeled pastes.json, connection lines, monospace labels." \
+  --out docs/demos/example-architecture.png --size 1536x1024 --quality medium
+
+python3 skills/image-generate/scripts/generate_image.py \
+  --prompt "abstract concept image for \"chaos engineering\": a small dark grid of terminal tiles with one tile fracturing into noise, single #FFCC00 accent on the fractured tile." \
+  --out docs/demos/example-concept.png --size 1024x1024 --quality medium
+
+python3 skills/image-generate/scripts/generate_image.py \
+  --prompt "social preview card for the iksnae/skills repository: the text \"iksnae/skills\" in monospace as the focal point on near-black, thin #FFCC00 underline rule, small scattered skill-name tags in dim gray." \
+  --out docs/demos/example-social-card.png --size 1536x1024 --quality medium
+```
+
+| Output | Size | Dimensions | Cost estimate |
+|---|---|---|---|
+| `docs/demos/example-architecture.png` | 1.24 MB | 1536x1024 | $0.03 |
+| `docs/demos/example-architecture.json` (receipt) | 1.3 KB | — | — |
+| `docs/demos/example-concept.png` | 0.94 MB | 1024x1024 | $0.02 |
+| `docs/demos/example-concept.json` (receipt) | 1.2 KB | — | — |
+| `docs/demos/example-social-card.png` | 1.07 MB | 1536x1024 | $0.03 |
+| `docs/demos/example-social-card.json` (receipt) | 1.3 KB | — | — |
+
+Visual check: architecture renders three labeled surface panels above a
+`pastes.json` store with connection lines; concept shows a tile grid with
+one tile fracturing into noise under a single yellow accent; social card
+puts `iksnae/skills` in monospace with a thin `#FFCC00` underline and dim
+scattered tags. All flat, near-black, one accent each — on brief.
+
+Estimated spend for this addendum ≈ $0.08 (gpt-image-2 medium). Reconcile
+against the OpenAI invoice for exact figures.
+
+## Renders addendum
+
+The deliberate non-run in §3 is closed. A minimal Remotion project
+scaffold now lives at `demo/remotion/` (`package.json` with
+remotion + @remotion/cli 4.x, `src/index.ts` → `registerRoot`,
+`src/Root.tsx` registering two compositions, design tokens from
+`DESIGN.md` centralized in `src/brand.ts`). The title-card spec's
+BEATS consts were translated verbatim into
+`src/NightjarTitleCard.tsx`; `src/NightjarLaunchCard.tsx` is the
+`remotion-with-image` composite, loading `public/hero-nightjar.png`
+(copied from `docs/assets/hero-nightjar.png`, the still from §1b)
+via `staticFile()` — wordmark scene, hero reveal under a `#FFCC00`
+rule, closing `iksnae/skills` tag.
+
+Lints re-run clean before render:
+
+```bash
+python3 skills/remotion-render/scripts/lint_remotion_spec.py \
+  --spec docs/demos/nightjar-title-card.spec.md \
+  --registry docs/demos/component-registry.md   # exit 0
+python3 skills/remotion-render/scripts/lint_remotion_spec.py \
+  --check-tokens demo/remotion/src              # exit 0
+```
+
+Both renders went through the bundled wrapper, dogfooded as intended:
+
+```bash
+python3 skills/remotion-render/scripts/render_remotion.py \
+  --project demo/remotion --composition NightjarTitleCard \
+  --out docs/demos/nightjar-title-card.mp4 --tier default --concurrency 4
+python3 skills/remotion-render/scripts/render_remotion.py \
+  --project demo/remotion --composition NightjarLaunchCard \
+  --out docs/demos/nightjar-launch-card.mp4 --tier default --concurrency 4
+```
+
+| Output | Frames | Size | Render time | Receipt |
+|---|---|---|---|---|
+| `docs/demos/nightjar-title-card.mp4` | 150 @ 30 fps, 1920×1080 h264 | 249 KB | 3.6 s | `nightjar-title-card.mp4.receipt.json`, `ok: true` |
+| `docs/demos/nightjar-launch-card.mp4` | 180 @ 30 fps, 1920×1080 h264 | 923 KB | 5.0 s | `nightjar-launch-card.mp4.receipt.json`, `ok: true` |
+
+Both verified with ffprobe (codec h264, expected frame counts and
+dimensions). Stills and a preview were exported alongside:
+
+- `docs/assets/nightjar-title-card-poster.png` (44 KB, frame 90 —
+  mid-hold, via `npx remotion still`).
+- `docs/assets/nightjar-launch-card-poster.png` (995 KB, frame 110 —
+  the hero scene rather than the wordmark scene, deliberately, so the
+  poster shows the composited still that distinguishes this clip).
+- `docs/assets/nightjar-title-card-preview.gif` (52 KB, 12 fps at
+  960px, ffmpeg palettegen/paletteuse — Remotion's gif codec was not
+  needed).
+
+Script gaps found in `render_remotion.py`: none blocking — both
+renders succeeded through the wrapper on the first attempt. Two
+small observations: (1) no bitrate/CRF control exists beyond the
+tier presets' `--jpeg-quality`, so size tuning relies on tier choice
+(not needed here; both files came in well under the 4 MB cap);
+(2) the wrapper renders video only — poster stills required calling
+`npx remotion still` directly, since no still/frame-export mode
+exists. Render cost: free, local.
