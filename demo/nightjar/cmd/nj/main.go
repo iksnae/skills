@@ -27,6 +27,8 @@ func main() {
 		cmdList(st)
 	case "get":
 		cmdGet(st, os.Args[2:])
+	case "rm":
+		cmdRm(st, os.Args[2:])
 	case "serve":
 		cmdServe(st, os.Args[2:])
 	default:
@@ -36,7 +38,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: nj <add|list|get|serve> [args]")
+	fmt.Fprintln(os.Stderr, "usage: nj <add|list|get|rm|serve> [args]")
 }
 
 func cmdAdd(st *store.Store, args []string) {
@@ -97,6 +99,23 @@ func cmdGet(st *store.Store, args []string) {
 		os.Exit(1)
 	}
 	fmt.Print(p.Content)
+}
+
+func cmdRm(st *store.Store, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: nj rm <id>")
+		os.Exit(2)
+	}
+	id := args[0]
+	if err := st.Remove(id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			fmt.Fprintf(os.Stderr, "nj: no paste with id %q\n", id)
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(1)
+	}
+	fmt.Printf("removed %s\n", id)
 }
 
 func cmdServe(st *store.Store, args []string) {
