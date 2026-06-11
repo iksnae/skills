@@ -40,6 +40,14 @@ func (s *Server) ListenAndServe(addr string) error {
 	return srv.ListenAndServe()
 }
 
+// writeJSONError is the single place that knows how this API
+// serializes an error response.
+func writeJSONError(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
 func (s *Server) handlePastes(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/pastes")
 	path = strings.TrimPrefix(path, "/")
@@ -48,9 +56,7 @@ func (s *Server) handlePastes(w http.ResponseWriter, r *http.Request) {
 	if path == "" && r.Method == http.MethodGet {
 		pastes, err := s.store.Load()
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(500)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			writeJSONError(w, 500, err.Error())
 			return
 		}
 		items := make([]map[string]interface{}, 0, len(pastes))
@@ -80,9 +86,7 @@ func (s *Server) handlePastes(w http.ResponseWriter, r *http.Request) {
 	if path == "" && r.Method == http.MethodPost {
 		body, err := io.ReadAll(io.LimitReader(r.Body, 1048576))
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(400)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "could not read body"})
+			writeJSONError(w, 400, "could not read body")
 			return
 		}
 		content := string(body)
@@ -91,24 +95,18 @@ func (s *Server) handlePastes(w http.ResponseWriter, r *http.Request) {
 				Content string `json:"content"`
 			}
 			if err := json.Unmarshal(body, &req); err != nil {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(400)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid JSON"})
+				writeJSONError(w, 400, "invalid JSON")
 				return
 			}
 			content = req.Content
 		}
 		if strings.TrimSpace(content) == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(400)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "content is required"})
+			writeJSONError(w, 400, "content is required")
 			return
 		}
 		p, err := s.store.Add(content)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(500)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			writeJSONError(w, 500, err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -124,14 +122,11 @@ func (s *Server) handlePastes(w http.ResponseWriter, r *http.Request) {
 	if path != "" && r.Method == http.MethodGet {
 		p, err := s.store.Get(path)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
 			if errors.Is(err, store.ErrNotFound) {
-				w.WriteHeader(404)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "not found"})
+				writeJSONError(w, 404, "not found")
 				return
 			}
-			w.WriteHeader(500)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			writeJSONError(w, 500, err.Error())
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -140,6 +135,20 @@ func (s *Server) handlePastes(w http.ResponseWriter, r *http.Request) {
 			"content": p.Content,
 			"created": p.Created,
 		})
+		return
+	}
+
+	// DELETE /api/pastes/{id} — remove one paste.
+	if path != "" && r.Method == http.MethodDelete {
+		if err := s.store.Remove(path); err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				writeJSONError(w, 404, "not found")
+				return
+			}
+			writeJSONError(w, 500, err.Error())
+			return
+		}
+		w.WriteHeader(204)
 		return
 	}
 

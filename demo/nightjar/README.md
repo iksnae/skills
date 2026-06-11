@@ -38,6 +38,7 @@ Run `nj serve`, then:
 | GET    | `/api/pastes`      | List all pastes (JSON)            |
 | POST   | `/api/pastes`      | Create a paste, returns its id    |
 | GET    | `/api/pastes/{id}` | Fetch a single paste              |
+| DELETE | `/api/pastes/{id}` | Delete a paste (204 on success)   |
 
 `POST /api/pastes` accepts either a JSON body (`{"content": "..."}`
 with `Content-Type: application/json`) or a raw text body:
