@@ -1,0 +1,9 @@
+flowchart LR
+  deps["map fault vectors"] --> inject["inject on throwaway copy"]
+  inject --> observe["observe recovery"]
+  observe --> held["mechanism held"]
+  observe --> broke["mechanism broke"]
+  held --> record["record resilience"]
+  broke --> finding["file finding"]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class broke accent

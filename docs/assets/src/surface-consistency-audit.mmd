@@ -1,0 +1,12 @@
+flowchart LR
+  fact["load-bearing fact"] --> cli["CLI"]
+  fact --> api["API"]
+  fact --> web["web / TUI"]
+  fact --> data["ground truth"]
+  cli --> compare["compare"]
+  api --> compare
+  web --> compare
+  data --> compare
+  compare --> drift["drift report"]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class drift accent

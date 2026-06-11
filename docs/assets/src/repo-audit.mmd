@@ -1,0 +1,13 @@
+flowchart LR
+  repo["target repo<br/>read-only"] --> deps["deps"]
+  repo --> ci["build + CI"]
+  repo --> docs["docs + tests"]
+  repo --> gov["license + code health"]
+  deps --> sev["score severity<br/>blocker - attention - note"]
+  ci --> sev
+  docs --> sev
+  gov --> sev
+  sev --> report["audit report.md"]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class report accent
+  linkStyle 8 stroke:#FFCC00

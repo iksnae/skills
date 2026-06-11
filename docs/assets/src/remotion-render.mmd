@@ -1,0 +1,8 @@
+flowchart LR
+  project[remotion project] --> validate[validate comp id]
+  comp[composition id] --> validate
+  validate --> render[render_remotion.py]
+  render --> video[MP4 file]
+  render --> receipt[receipt JSON]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class video accent

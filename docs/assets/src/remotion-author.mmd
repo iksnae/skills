@@ -1,0 +1,8 @@
+flowchart LR
+  narrative[scene narrative] --> beats[BEATS blueprint]
+  registry[component registry] --> spec[spec markdown]
+  beats --> spec
+  spec --> lint[lint_remotion_spec.py]
+  lint --> ready[ready to build]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class ready accent

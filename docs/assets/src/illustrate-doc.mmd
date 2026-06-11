@@ -1,0 +1,8 @@
+flowchart TD
+  doc[doc to illustrate] --> q1{structural geometry}
+  q1 -->|no| prose[no image]
+  q1 -->|yes| q2{pictorial or brand}
+  q2 -->|no| mermaid[mermaid fence]
+  q2 -->|yes| image[image-generate]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class mermaid accent

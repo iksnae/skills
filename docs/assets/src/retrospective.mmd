@@ -1,0 +1,10 @@
+flowchart LR
+  record["recorded activity<br/>git - CI - tracker"] --> window["pin the window"]
+  window --> group["group by outcome<br/>shipped - halted - in flight"]
+  group --> drift["find drift signals<br/>2+ occurrences each"]
+  drift --> cite["cite every claim<br/>SHA - run ID - issue"]
+  cite --> report["retro report"]
+  report --> candidates["improvement candidates"]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class drift accent
+  linkStyle 3 stroke:#FFCC00

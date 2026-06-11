@@ -1,0 +1,10 @@
+flowchart LR
+  brief["brief or rubric"] --> scope["scope gate<br/>candidates + weights"]
+  scope --> search["search fan-out<br/>per candidate"]
+  search --> fetch["fetch sources"]
+  fetch --> verify["adversarial verify<br/>3-vote per claim"]
+  verify --> score["score vs rubric"]
+  score --> card["ranked scorecard<br/>+ refuted claims"]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class verify accent
+  linkStyle 3 stroke:#FFCC00

@@ -1,0 +1,18 @@
+{
+  "schema": "image-gen-receipt-v1",
+  "ts": "2026-06-11T17:57:20Z",
+  "prompt_raw": "Repo hero image: an abstract terminal composition for a developer skills library. A grid of small dark skill tiles arranged like a terminal dashboard, flat surfaces with hairline borders, monospace feel, near-black background. Exactly one tile is accented in the signal yellow; all others are dark and quiet. A 3:2 landscape. No characters, no scenes, flat color only.",
+  "prompt_final": "Dark CRT terminal aesthetic on near-black `#0a0a0a`. Flat color only: surfaces\n`#161616`, hairline strokes `#2a2a2a`, text `#e8e8e8`, single yellow accent\n`#FFCC00` used sparingly. Monospace labels, terse. Diagrams and technical\ncompositions only \u2014 no characters, scenes, or illustrations. No gradients, no\nshadows, no glow, no rounded corners, no neon or synthwave. Quiet terminal\naesthetic.\n\nRepo hero image: an abstract terminal composition for a developer skills library. A grid of small dark skill tiles arranged like a terminal dashboard, flat surfaces with hairline borders, monospace feel, near-black background. Exactly one tile is accented in the signal yellow; all others are dark and quiet. A 3:2 landscape. No characters, no scenes, flat color only.",
+  "prompt_hash": "2937449d292a68895e5027649afe138a04558e2dcaee157f15b237d15e6cba8e",
+  "style_injected": true,
+  "no_style": false,
+  "out": "/Users/khaos/Projects/iksnae-skills/docs/assets/hero-iksnae-skills.png",
+  "out_path": "docs/assets/hero-iksnae-skills.png",
+  "size": "1536x1024",
+  "quality": "medium",
+  "model": "gpt-image-2",
+  "cost_estimate": 0.03,
+  "caller_pid": 94672,
+  "ok": true,
+  "error": null
+}

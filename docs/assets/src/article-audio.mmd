@@ -1,0 +1,8 @@
+flowchart LR
+  md[markdown article] --> strip[strip and chunk]
+  strip --> tts[gpt-4o-mini-tts]
+  tts --> concat[concat mp3 bytes]
+  concat --> mp3[audio.mp3]
+  concat --> receipt[receipt JSON]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class mp3 accent

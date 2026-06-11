@@ -1,0 +1,8 @@
+flowchart LR
+  target["pick target"] --> surfaces["discover surfaces"]
+  surfaces --> run["run real workflow"]
+  run --> cross["cross-check surfaces"]
+  cross --> file["file findings"]
+  file --> verify["re-verify fix"]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class run accent

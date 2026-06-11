@@ -1,0 +1,10 @@
+flowchart TD
+  intent["establish intent"] --> plan["plan a small step"]
+  plan --> impl["implement<br/>seams + pure core"]
+  impl --> review["review quality gates<br/>clean - SOLID - DRY - arch"]
+  review --> refactor["refactor safely"]
+  refactor --> close["close the loop<br/>changed - risk - next"]
+  close --> plan
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class review accent
+  linkStyle 5 stroke:#FFCC00

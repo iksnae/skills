@@ -1,0 +1,8 @@
+flowchart LR
+  gen[image-generate] --> png[PNG in public]
+  png --> spec[remotion-author spec]
+  spec --> lint[lint spec]
+  lint --> render[remotion-render]
+  render --> video[brand video]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class video accent

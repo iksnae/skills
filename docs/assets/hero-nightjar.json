@@ -1,0 +1,18 @@
+{
+  "schema": "image-gen-receipt-v1",
+  "ts": "2026-06-11T17:58:22Z",
+  "prompt_raw": "Demo hero image: a tiny terminal pastebin application called nightjar shown as a dark CRT terminal window on a near-black background. A list of paste rows rendered in monospace, flat surfaces with hairline borders, quiet and terse. A single yellow accent on the wordmark 'nightjar' at the top; everything else dark and dim. A 3:2 landscape. No characters, no scenes, flat color only, no glow.",
+  "prompt_final": "Dark CRT terminal aesthetic on near-black `#0a0a0a`. Flat color only: surfaces\n`#161616`, hairline strokes `#2a2a2a`, text `#e8e8e8`, single yellow accent\n`#FFCC00` used sparingly. Monospace labels, terse. Diagrams and technical\ncompositions only \u2014 no characters, scenes, or illustrations. No gradients, no\nshadows, no glow, no rounded corners, no neon or synthwave. Quiet terminal\naesthetic.\n\nDemo hero image: a tiny terminal pastebin application called nightjar shown as a dark CRT terminal window on a near-black background. A list of paste rows rendered in monospace, flat surfaces with hairline borders, quiet and terse. A single yellow accent on the wordmark 'nightjar' at the top; everything else dark and dim. A 3:2 landscape. No characters, no scenes, flat color only, no glow.",
+  "prompt_hash": "a045ff8af37ba9717b527f960993b1a67086dba332f39e4f34698a559f8dd12d",
+  "style_injected": true,
+  "no_style": false,
+  "out": "/Users/khaos/Projects/iksnae-skills/docs/assets/hero-nightjar.png",
+  "out_path": "docs/assets/hero-nightjar.png",
+  "size": "1536x1024",
+  "quality": "medium",
+  "model": "gpt-image-2",
+  "cost_estimate": 0.03,
+  "caller_pid": 99179,
+  "ok": true,
+  "error": null
+}

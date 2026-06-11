@@ -1,0 +1,10 @@
+flowchart TD
+  chaos["chaos-qa"] --> nj["nightjar"]
+  dogfood["dogfood-qa"] --> nj
+  surface["surface-audit"] --> nj
+  certify["certify"] --> nj
+  audit["repo-audit"] --> nj
+  devloop["development-loop"] --> nj
+  scout["market-scout"] --> nj
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class nj accent

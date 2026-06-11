@@ -1,0 +1,8 @@
+flowchart LR
+  src[prompt or mermaid] --> tool[generate_image.py]
+  tool --> brief[style brief inject]
+  brief --> api[OpenAI image API]
+  api --> png[PNG]
+  api --> receipt[receipt JSON]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class png accent

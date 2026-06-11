@@ -1,0 +1,29 @@
+{
+  "schema": "article-audio-receipt-v1",
+  "id": "c4b3dff8-9cbc-494a-a61d-0604e3be7f02",
+  "started_at": "2026-06-11T17:58:50Z",
+  "finished_at": "2026-06-11T17:59:00Z",
+  "wall_seconds": 10.01,
+  "md_path": "/Users/khaos/Projects/iksnae-skills/docs/demos/nightjar-launch-note.md",
+  "out_path": "/Users/khaos/Projects/iksnae-skills/docs/demos/nightjar-launch-note.mp3",
+  "out_size_bytes": 840192,
+  "model": "gpt-4o-mini-tts",
+  "voice": "echo",
+  "format": "mp3",
+  "speed": 1.0,
+  "instructions": "measured, slightly low cadence, technical tone, no theatrics, no exclamation",
+  "char_count": 770,
+  "chunk_count": 1,
+  "chunks": [
+    {
+      "index": 0,
+      "chars": 770,
+      "bytes": 840192,
+      "duration_sec": 10.0
+    }
+  ],
+  "estimated_cost_usd": 0.0092,
+  "plain_sha256": "a0bfe3fdcc890823ff23fc0cf935cba326d682a04ccf0d73e8787863da20e9c7",
+  "pronunciations_applied": {},
+  "pronunciations_skipped": false
+}

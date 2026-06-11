@@ -1,0 +1,11 @@
+flowchart LR
+  repo["target repo"] --> units["discover code units"]
+  units --> evidence["collect evidence<br/>lint - test - metrics - git"]
+  evidence --> policy["apply policy rules"]
+  policy --> score["score 9 dimensions"]
+  score --> grade["assign grades A-F"]
+  grade --> card["REPORT_CARD.md"]
+  grade --> plan["remediation plan<br/>if D or F units"]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class card accent
+  linkStyle 5 stroke:#FFCC00
