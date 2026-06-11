@@ -1,9 +1,10 @@
-// Package server exposes the nightjar HTTP API.
+// Package server exposes the nightjar HTTP API and web index page.
 package server
 
 import (
 	"encoding/json"
 	"errors"
+	"html/template"
 	"io"
 	"net/http"
 	"strings"
@@ -12,14 +13,17 @@ import (
 	"github.com/iksnae/skills/demo/nightjar/internal/store"
 )
 
-// Server serves the nightjar HTTP API on top of a store.
+// Server serves the nightjar HTTP API and web index on top of a store.
 type Server struct {
-	store *store.Store
+	store      *store.Store
+	indexCount int // cached at startup so the index header renders fast
 }
 
-// New builds a Server around an existing store.
+// New builds a Server around an existing store. The index paste counter
+// is primed once here.
 func New(st *store.Store) *Server {
-	return &Server{store: st}
+	pastes, _ := st.Load()
+	return &Server{store: st, indexCount: len(pastes)}
 }
 
 // ListenAndServe blocks serving HTTP on addr.
@@ -27,6 +31,7 @@ func (s *Server) ListenAndServe(addr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/pastes", s.handlePastes)
 	mux.HandleFunc("/api/pastes/", s.handlePastes)
+	mux.HandleFunc("/", s.handleIndex)
 	srv := &http.Server{
 		Addr:        addr,
 		Handler:     mux,
@@ -139,4 +144,65 @@ func (s *Server) handlePastes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(405)
+}
+
+var indexTmpl = template.Must(template.New("index").Parse(`<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>nightjar</title>
+<style>
+  body { background: #0a0a0a; color: #e8e8e8; font-family: ui-monospace, "SF Mono", Menlo, monospace; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+  h1 { color: #FFCC00; font-size: 20px; }
+  h1 span { color: #555; font-weight: normal; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 8px; border-bottom: 1px solid #1e1e1e; font-size: 13px; }
+  td.id { color: #FFCC00; }
+  td.date { color: #777; white-space: nowrap; }
+  .empty { color: #555; padding: 24px 0; }
+</style>
+</head>
+<body>
+<h1>nightjar <span>{{.Count}} pastes</span></h1>
+{{if .Rows}}<table>
+{{range .Rows}}<tr><td class="id">{{.ID}}</td><td class="date">{{.Date}}</td><td>{{.Snippet}}</td></tr>
+{{end}}</table>{{else}}<p class="empty">nothing here yet — try nj add</p>{{end}}
+</body>
+</html>
+`))
+
+func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	pastes, err := s.store.Load()
+	if err != nil {
+		http.Error(w, "could not load pastes", 500)
+		return
+	}
+	type row struct {
+		ID, Date, Snippet string
+	}
+	rows := make([]row, 0, len(pastes))
+	for _, p := range pastes {
+		snippet := p.Content
+		if i := strings.IndexByte(snippet, '\n'); i >= 0 {
+			snippet = snippet[:i]
+		}
+		if len(snippet) > 64 {
+			snippet = snippet[:64]
+		}
+		rows = append(rows, row{
+			ID:      p.ID,
+			Date:    time.Unix(p.Created, 0).Format("2006-01-02"),
+			Snippet: snippet,
+		})
+	}
+	data := struct {
+		Count int
+		Rows  []row
+	}{Count: s.indexCount, Rows: rows}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = indexTmpl.Execute(w, data)
 }
