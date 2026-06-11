@@ -2,10 +2,10 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "iksnae-skills",
   "displayName": "iksnae Skills",
-  "description": "Reusable engineering skills: architecture, code quality, Go, TUI design, and product research.",
+  "description": "Reusable engineering skills: knowledge graphs, code certification, QA/red-teaming, research, and media generation.",
   "author": { "name": "iksnae" },
   "homepage": "https://github.com/iksnae/skills",
   "repository": "https://github.com/iksnae/skills",
   "license": "MIT",
-  "keywords": ["architecture", "code-quality", "go", "tui", "product"]
+  "keywords": ["architecture", "code-quality", "qa", "research", "media"]
 }

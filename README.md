@@ -1,23 +1,45 @@
 # iksnae/skills
 
-Reusable [Claude Code](https://claude.com/claude-code) skills, commands, and tools — original work, generalized from months of real-world use.
+Reusable agent skills and tools — original work, generalized from months of real-world use.
+
+Skills follow the open [Agent Skills standard](https://agentskills.io) (`SKILL.md` + YAML frontmatter) and work with **Claude Code, OpenAI Codex, pi, Cursor, GitHub Copilot, Gemini CLI, opencode, Goose, Amp**, and any other compatible harness.
 
 ## Install
 
-### As a Claude Code plugin (recommended)
+### Universal installer (any harness)
+
+```bash
+npx skills add iksnae/skills        # auto-detects your installed agents
+```
+
+### Claude Code plugin
 
 ```
 /plugin marketplace add iksnae/skills
 /plugin install iksnae-skills@iksnae
 ```
 
-### Via npx
+### This repo's own installer
 
 ```bash
 npx @iksnae/skills list                 # see what's available
-npx @iksnae/skills add graphify certify # install into ~/.claude/skills
-npx @iksnae/skills add --all --project  # install everything into ./.claude
+npx @iksnae/skills add graphify certify # installs into ~/.claude/skills and ~/.agents/skills
+npx @iksnae/skills add --all --project  # everything into ./.claude and ./.agents
+npx @iksnae/skills add certify --to ~/.pi/agent/skills   # explicit target
 ```
+
+### Manual (Codex, pi, Cursor, opencode, Goose, Amp, ...)
+
+Clone or copy any `skills/<name>/` directory into the shared skills path:
+
+```bash
+# global
+git clone https://github.com/iksnae/skills /tmp/iksnae-skills
+cp -R /tmp/iksnae-skills/skills/* ~/.agents/skills/
+# or per-project: .agents/skills/
+```
+
+Harness-specific paths also work: `~/.codex/skills` (Codex), `~/.pi/agent/skills` (pi), `~/.cursor/skills` (Cursor), `~/.gemini/skills` (Gemini), `~/.config/opencode/skills` (opencode).
 
 ## Skills
 
@@ -61,10 +83,17 @@ Media scripts live in each skill's `scripts/` directory and use environment vari
 ## Layout
 
 ```
-.claude-plugin/marketplace.json      # plugin marketplace catalog
-plugins/iksnae-skills/               # the plugin: skills/ + manifest
+skills/<name>/SKILL.md               # one directory per skill (Agent Skills standard)
+.claude-plugin/                      # Claude Code marketplace + plugin manifests
 bin/cli.mjs                          # npx installer
 ```
+
+## Portability notes
+
+- Skills are written to be **model-invoked by their `description`** — no harness-specific invocation required.
+- Claude-specific frontmatter (`allowed-tools`, slash-command hints) is advisory; other harnesses ignore it safely.
+- `market-scout` bundles an optional Claude Code Workflow script; the skill works without it everywhere else.
+- Media skills shell out to bundled Python scripts in each skill's `scripts/` dir and read credentials from environment variables (`OPENAI_API_KEY`) — harness-agnostic.
 
 ## License
 

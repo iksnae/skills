@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
   "name": "iksnae",
-  "description": "Generally useful, reusable Claude Code skills, commands, tools, and templates from iksnae.",
+  "description": "Generally useful, reusable agent skills and tools from iksnae.",
   "owner": {
     "name": "iksnae",
     "email": "k@khaos.studio"
@@ -10,13 +10,13 @@
     {
       "name": "iksnae-skills",
       "displayName": "iksnae Skills",
-      "description": "Reusable engineering skills: architecture, code quality, Go, TUI design, and product research.",
-      "source": "./plugins/iksnae-skills",
+      "description": "Reusable engineering skills: knowledge graphs, code certification, QA/red-teaming, research, and media generation.",
+      "source": "./",
       "author": { "name": "iksnae" },
       "homepage": "https://github.com/iksnae/skills",
       "repository": "https://github.com/iksnae/skills",
       "license": "MIT",
-      "keywords": ["architecture", "code-quality", "go", "tui", "product"]
+      "keywords": ["architecture", "code-quality", "qa", "research", "media"]
     }
   ]
 }
