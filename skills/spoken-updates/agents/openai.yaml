@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spoken Updates"
+  short_description: "Speak agent status updates in the background"
+  default_prompt: "Use $spoken-updates to configure speech and speak a short non-blocking progress update."

@@ -61,6 +61,7 @@ Every skill has a full page covering usage, behavior, outputs — and a **real d
 | [image-generate](docs/image-generate.md) | Brand-aware image generation with receipts — this README's heroes are its output. |
 | [illustrate-doc](docs/illustrate-doc.md) | Decide whether a document deserves illustration, then orchestrate the media skills. |
 | [article-audio](docs/article-audio.md) | Narrated audio from a markdown article, with pronunciation config. |
+| [spoken-updates](docs/spoken-updates.md) | Toggleable, configurable spoken agent progress updates via non-blocking native TTS. |
 | [remotion-author](docs/remotion-author.md) | Author Remotion video specs in a lintable blueprint format. |
 | [remotion-render](docs/remotion-render.md) | Render Remotion compositions with receipts; bundles the spec linter. |
 | [remotion-with-image](docs/remotion-with-image.md) | Composite flow: generated stills inside Remotion videos. |

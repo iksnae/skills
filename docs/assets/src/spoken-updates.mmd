@@ -1,0 +1,9 @@
+flowchart LR
+  A[agent update] --> B{enabled?}
+  B -- no --> C[json skipped]
+  B -- yes --> D[redact + trim]
+  D --> E[native TTS]
+  E --> F[background pid]
+
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class E,F accent;

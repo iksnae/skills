@@ -16,6 +16,9 @@
   "files": [
     "bin/",
     "skills/",
+    "docs/",
+    "demo/",
+    "DESIGN.md",
     ".claude-plugin/"
   ],
   "engines": {
