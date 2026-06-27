@@ -1,0 +1,10 @@
+flowchart TD
+  base["baseline<br/>record size"] --> diag["diagnose<br/>where the bytes are"]
+  diag --> lever{"pick the lever<br/>arch - gating - deps - flags"}
+  lever --> spec["specialty<br/>swift - go - js/ts"]
+  spec --> apply["apply one change"]
+  apply --> remeasure["re-measure<br/>state delta in bytes/%"]
+  remeasure --> lever
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class lever,spec accent;
+  linkStyle 5 stroke:#FFCC00

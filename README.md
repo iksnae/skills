@@ -45,6 +45,7 @@ Every skill has a full page covering usage, behavior, outputs — and a **real d
 | Skill | What it does |
 |---|---|
 | [development-loop](docs/development-loop.md) | Language-agnostic plan → implement → review → refactor loop with clean-code discipline. |
+| [tree-shaking](docs/tree-shaking.md) | Shrink binaries and bundles — measure, diagnose, pull the right dead-code/packaging lever, prove the win. Language specialties (Swift, Go, JS/TS) under one skill. |
 
 ### QA & red-teaming
 

@@ -1,6 +1,6 @@
 {
   "name": "@iksnae/skills",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Reusable Claude Code skills, commands, tools, and templates — install via npx or as a Claude Code plugin.",
   "license": "MIT",
   "author": "iksnae",
