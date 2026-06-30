@@ -1,0 +1,37 @@
+{
+  "name": "@iksnae/familiar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A universal, cross-harness ambient desktop pet for AI coding agents. Semantic events → a pure reducer → renderer-agnostic pets (native macOS overlay or terminal). Distributed via the iksnae/skills repo, not the npm registry.",
+  "type": "module",
+  "bin": {
+    "familiar": "familiar.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "familiar.mjs",
+    "overlay/Package.swift",
+    "overlay/Sources/**",
+    "pets/default/**",
+    "README.md"
+  ],
+  "keywords": [
+    "ambient",
+    "desktop-pet",
+    "agent",
+    "claude-code",
+    "codex",
+    "overlay",
+    "statusline",
+    "ambisphere"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iksnae/skills",
+    "directory": "tools/familiar"
+  },
+  "homepage": "https://github.com/iksnae/skills/tree/main/tools/familiar#readme"
+}

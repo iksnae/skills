@@ -1,0 +1,13 @@
+{
+  "idle":           [" ( ·ω· )\n  o   o", " ( -ω- )\n  o   o"],
+  "thinking":       [" ( ·_· ) ?\n  o   o", " ( ·_· ) .\n  o   o"],
+  "working":        [" ( >ω<)/\n  o   o", " (/>ω< )\n  o   o"],
+  "awaiting-human": [" ( ·o· ) ?\n  o   o", " ( ·O· ) ?\n  o   o"],
+  "reviewing":      [" ( o.o )~\n  o   o", " ( o.- )~\n  o   o"],
+  "succeeded":      [" \\( ^o^ )/\n  o   o", " \\( ^O^ )/\n  o   o"],
+  "failed":         [" ( ;_; )\n  o   o", " ( T_T )\n  o   o"],
+  "errored":        [" ( @_@ ) !\n  o   o", " ( x_x ) !\n  o   o"],
+  "rate-limited":   [" ( -.- ) z\n  o   o", " ( -.- ) zz\n  o   o"],
+  "milestone":      [" \\( ^_^ )/ *\n  o   o", " \\( ^_^ )/  *\n  o   o"],
+  "sleeping":       [" ( -.- ) z\n  o   o", " ( u.u )\n  o   o"]
+}

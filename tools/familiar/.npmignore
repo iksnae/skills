@@ -1,0 +1,8 @@
+# base images are regeneration seeds (authoring only), not needed at runtime
+**/base.png
+**/base.json
+# generation intermediates, if any slipped in
+**/*.strip.png
+# dev / OS cruft
+**/.DS_Store
+overlay/.build

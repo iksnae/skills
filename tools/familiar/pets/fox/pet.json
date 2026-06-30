@@ -1,0 +1,25 @@
+{
+  "id": "fox",
+  "displayName": "fox",
+  "description": "a cute chibi fox mascot: bright orange fur, cream-white chest, muzzle, inner ears and tail-tip, big round dark friendly eyes, small triangular ears, a fluffy curled tail; round and approachable, seated and facing forward",
+  "states": [
+    "idle",
+    "thinking",
+    "working",
+    "reviewing",
+    "awaiting-human",
+    "milestone",
+    "failed",
+    "sleeping",
+    "held",
+    "poked"
+  ],
+  "renderers": {
+    "ascii-green-sprites": {
+      "dir": "frames",
+      "manifest": "anim.json",
+      "chromaKey": "#00b140",
+      "note": "hatched via pet-hatch strip pipeline"
+    }
+  }
+}

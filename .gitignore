@@ -4,3 +4,6 @@ node_modules/
 generated-images/
 renders/
 .spoken-updates.json
+
+# personal dogfood hooks (merges with global)
+.claude/settings.local.json

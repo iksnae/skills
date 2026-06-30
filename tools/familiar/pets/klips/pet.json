@@ -1,0 +1,23 @@
+{
+  "id": "klips",
+  "displayName": "Klips",
+  "description": "Codex's ink story-sprite mascot, loaded as a renderer test.",
+  "states": [
+    "idle",
+    "thinking",
+    "working",
+    "reviewing",
+    "awaiting-human",
+    "milestone",
+    "failed",
+    "sleeping"
+  ],
+  "renderers": {
+    "ascii-green-sprites": {
+      "dir": "frames",
+      "manifest": "anim.json",
+      "chromaKey": "#00b140",
+      "note": "codex atlas; frames already transparent (key is a no-op)"
+    }
+  }
+}

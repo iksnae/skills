@@ -1,0 +1,183 @@
+{
+  "frameMs": 160,
+  "states": {
+    "idle": {
+      "frames": [
+        "idle.f0.png",
+        "idle.f1.png",
+        "idle.f2.png",
+        "idle.f3.png",
+        "idle.f4.png",
+        "idle.f5.png"
+      ],
+      "frameMs": 200,
+      "durations": [
+        360,
+        200,
+        200,
+        200,
+        200,
+        400
+      ],
+      "mode": "loop"
+    },
+    "thinking": {
+      "frames": [
+        "thinking.f0.png",
+        "thinking.f1.png",
+        "thinking.f2.png",
+        "thinking.f3.png",
+        "thinking.f4.png"
+      ],
+      "frameMs": 230,
+      "durations": [
+        414,
+        230,
+        230,
+        230,
+        460
+      ],
+      "mode": "loop"
+    },
+    "working": {
+      "frames": [
+        "working.f0.png",
+        "working.f1.png",
+        "working.f2.png",
+        "working.f3.png",
+        "working.f4.png",
+        "working.f5.png"
+      ],
+      "frameMs": 130,
+      "durations": [
+        234,
+        130,
+        130,
+        130,
+        130,
+        260
+      ],
+      "mode": "loop"
+    },
+    "reviewing": {
+      "frames": [
+        "reviewing.f0.png",
+        "reviewing.f1.png",
+        "reviewing.f2.png",
+        "reviewing.f3.png",
+        "reviewing.f4.png"
+      ],
+      "frameMs": 280,
+      "durations": [
+        504,
+        280,
+        280,
+        280,
+        560
+      ],
+      "mode": "loop"
+    },
+    "awaiting-human": {
+      "frames": [
+        "awaiting-human.f0.png",
+        "awaiting-human.f1.png",
+        "awaiting-human.f2.png",
+        "awaiting-human.f3.png"
+      ],
+      "frameMs": 220,
+      "durations": [
+        396,
+        220,
+        220,
+        440
+      ],
+      "mode": "loop"
+    },
+    "milestone": {
+      "frames": [
+        "milestone.f0.png",
+        "milestone.f1.png",
+        "milestone.f2.png",
+        "milestone.f3.png",
+        "milestone.f4.png"
+      ],
+      "frameMs": 150,
+      "durations": [
+        270,
+        150,
+        150,
+        150,
+        300
+      ],
+      "mode": "loop"
+    },
+    "failed": {
+      "frames": [
+        "failed.f0.png",
+        "failed.f1.png",
+        "failed.f2.png",
+        "failed.f3.png",
+        "failed.f4.png"
+      ],
+      "frameMs": 240,
+      "durations": [
+        432,
+        240,
+        240,
+        240,
+        480
+      ],
+      "mode": "loop"
+    },
+    "sleeping": {
+      "frames": [
+        "sleeping.f0.png",
+        "sleeping.f1.png",
+        "sleeping.f2.png",
+        "sleeping.f3.png"
+      ],
+      "frameMs": 340,
+      "durations": [
+        612,
+        340,
+        340,
+        680
+      ],
+      "mode": "loop"
+    },
+    "held": {
+      "frames": [
+        "held.f0.png",
+        "held.f1.png",
+        "held.f2.png",
+        "held.f3.png"
+      ],
+      "frameMs": 200,
+      "durations": [
+        360,
+        200,
+        200,
+        400
+      ],
+      "mode": "loop"
+    },
+    "poked": {
+      "frames": [
+        "poked.f0.png",
+        "poked.f1.png",
+        "poked.f2.png",
+        "poked.f3.png",
+        "poked.f4.png"
+      ],
+      "frameMs": 110,
+      "durations": [
+        198,
+        110,
+        110,
+        110,
+        220
+      ],
+      "mode": "loop"
+    }
+  }
+}
