@@ -133,55 +133,83 @@ def non_green_bbox(rgb: np.ndarray):
 
 
 def slice_strip(strip: Image.Image, frames: int) -> list[Image.Image]:
-    """Split the strip into N equal columns, crop each to the fox's non-green
-    bbox, scale them all by ONE shared factor (no per-frame size pulsing), and
-    center each on a flat-green CELL×CELL canvas. Centering on the silhouette
-    bbox is stable within a loop (a blink doesn't change the silhouette), so the
-    body stays put — the whole point."""
+    """Split the strip into N equal columns and cut every frame with ONE shared
+    crop window, scale, and paste offset — so cropping can never shift the body
+    between frames. (Per-frame bbox-centering, as Codex's fit_to_cell does,
+    slides the body whenever the silhouette extent changes — a tail flick or a
+    raised paw moves the bbox center; in a large cell that re-centering reads as
+    horizontal sliding. A shared window preserves exactly where the model drew
+    each frame, which the coherent strip keeps planted.)
+
+    The shared window is the UNION of every frame's non-green bbox in slot-local
+    coordinates, so it contains the fox in every frame while trimming the common
+    margin identically."""
     strip = strip.convert("RGB").resize((OUT_W, OUT_H), Image.LANCZOS)
     arr = np.asarray(strip)
     # Inset each slot to drop any thin frame-divider line the model draws at a
-    # slot boundary (it would otherwise survive as a dark sliver, since it's not
-    # green and so the renderer's chroma key won't remove it). Safe padding in
-    # the prompt keeps the fox away from slot edges, so the inset never clips it.
+    # slot boundary (it survives as a dark sliver otherwise — not green, so the
+    # renderer's chroma key won't remove it). Safe padding keeps the fox clear.
     mx = max(10, round(OUT_W / frames * 0.05))
     my = 12
-    crops: list[Image.Image] = []
-    for i in range(frames):
-        x0 = round(i * OUT_W / frames) + mx
-        x1 = round((i + 1) * OUT_W / frames) - mx
-        col = arr[my:OUT_H - my, x0:x1, :]
-        bb = non_green_bbox(col)
+    slots = [arr[my:OUT_H - my, round(i * OUT_W / frames) + mx: round((i + 1) * OUT_W / frames) - mx, :]
+             for i in range(frames)]
+
+    # Shared crop window = union of every frame's non-green bbox (slot-local).
+    union = None
+    for s in slots:
+        bb = non_green_bbox(s)
         if bb is None:
-            crops.append(Image.new("RGB", (CELL, CELL), GREEN))
             continue
-        l, t, r, b = bb
-        crops.append(Image.fromarray(col[t:b, l:r, :]))
-    real = [c for c in crops if c.size != (CELL, CELL) or True]
-    maxw = max(c.width for c in real)
-    maxh = max(c.height for c in real)
+        union = bb if union is None else (
+            min(union[0], bb[0]), min(union[1], bb[1]),
+            max(union[2], bb[2]), max(union[3], bb[3]))
+    if union is None:
+        return [Image.new("RGB", (CELL, CELL), GREEN) for _ in slots]
+
+    l, t, r, b = union
+    cw, ch = r - l, b - t
     avail = CELL - 2 * CELL_PAD
-    scale = min(avail / maxw, avail / maxh, 1.0)
+    scale = min(avail / cw, avail / ch, 1.0)
+    w, h = max(1, round(cw * scale)), max(1, round(ch * scale))
+    off = ((CELL - w) // 2, (CELL - h) // 2)            # one offset for every frame
+
     out: list[Image.Image] = []
-    for c in crops:
-        w, h = max(1, round(c.width * scale)), max(1, round(c.height * scale))
-        sprite = c.resize((w, h), Image.LANCZOS)
+    for s in slots:
+        crop = Image.fromarray(s[t:b, l:r, :])           # identical window every frame
+        sprite = crop.resize((w, h), Image.LANCZOS)
         cell = Image.new("RGB", (CELL, CELL), GREEN)
-        cell.paste(sprite, ((CELL - w) // 2, (CELL - h) // 2))
+        cell.paste(sprite, off)
         out.append(cell)
     return out
 
 
-def run_state(state: str, fdir: Path, image_script: Path, quality: str, force: bool) -> bool:
+def write_frames(state: str, fdir: Path, strip_img: Image.Image, n: int) -> None:
+    for i, im in enumerate(slice_strip(strip_img, n)):
+        im.save(fdir / f"{state}.f{i}.png")
+
+
+def run_state(state: str, fdir: Path, image_script: Path, quality: str,
+              force: bool, reslice: bool) -> bool:
     rec = STATES[state]
     n = rec["frames"]
+    raw_strip = fdir / f"{state}.strip.png"
+
+    # Re-slice an already-generated strip (free; no image call).
+    if reslice:
+        if not raw_strip.exists():
+            print(f"strip: {state} — no saved strip to reslice ({raw_strip})", file=sys.stderr)
+            return False
+        write_frames(state, fdir, Image.open(raw_strip), n)
+        print(f"strip: {state} resliced — {n} frames")
+        return True
+
     pose_ref = fdir / f"{state}.png"
     if not pose_ref.exists():
         print(f"strip: skip {state} — no pose keyframe {pose_ref}", file=sys.stderr)
         return False
-    frame_paths = [fdir / f"{state}.f{i}.png" for i in range(n)]
-    if all(p.exists() for p in frame_paths) and not force:
-        print(f"strip: {state} already has frames; skip (use --force)")
+    if raw_strip.exists() and not force:
+        print(f"strip: {state} already generated; reslicing (use --force to regenerate)")
+        write_frames(state, fdir, Image.open(raw_strip), n)
         return True
 
     with tempfile.TemporaryDirectory(prefix="strip-") as td:
@@ -204,10 +232,10 @@ def run_state(state: str, fdir: Path, image_script: Path, quality: str, force: b
         if r.returncode != 0 or not strip_out.exists():
             print(f"strip: {state} FAIL\n{(r.stderr or '')[-500:]}", file=sys.stderr)
             return False
-        frames = slice_strip(Image.open(strip_out), n)
+        # Persist the raw strip so future slicing changes need no regeneration.
+        Image.open(strip_out).convert("RGB").save(raw_strip)
 
-    for p, im in zip(frame_paths, frames):
-        im.save(p)
+    write_frames(state, fdir, Image.open(raw_strip), n)
     print(f"strip: {state} ok — {n} frames")
     return True
 
@@ -239,7 +267,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--states", default="all", help="comma list, or 'all'")
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--quality", default="high")
-    ap.add_argument("--force", action="store_true")
+    ap.add_argument("--force", action="store_true", help="regenerate strips even if saved")
+    ap.add_argument("--reslice", action="store_true",
+                    help="re-cut frames from saved <state>.strip.png (no image generation)")
     ap.add_argument("--anim-only", action="store_true", help="rewrite anim.json without generating")
     args = ap.parse_args(argv)
 
@@ -256,7 +286,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.anim_only:
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
-            list(ex.map(lambda st: run_state(st, fdir, script, args.quality, args.force), want))
+            list(ex.map(lambda st: run_state(st, fdir, script, args.quality,
+                                             args.force, args.reslice), want))
 
     merge_anim(fdir, want)
     return 0

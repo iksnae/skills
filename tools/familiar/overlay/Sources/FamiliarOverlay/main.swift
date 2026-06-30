@@ -376,7 +376,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         frameCache = FrameCache(dir)
         let src = frameCache.sheet.map { "sheet (\($0.rects.count) frames)" } ?? "discrete PNGs"
         FileHandle.standardError.write(Data("familiar-overlay: frames=\(dir?.path ?? "none") source=\(src)\n".utf8))
-        let size = NSSize(width: 220, height: 200)
+        // On-screen size — a small ambient companion by default. Sprite sources
+        // stay higher-res and downscale crisply (retina contentsScale set above);
+        // FAMILIAR_SIZE overrides the square edge in points.
+        let dim = ProcessInfo.processInfo.environment["FAMILIAR_SIZE"].flatMap { Double($0) } ?? 150
+        let size = NSSize(width: dim, height: dim)
 
         panel = NSPanel(contentRect: NSRect(origin: .zero, size: size),
                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
