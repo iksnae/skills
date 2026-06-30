@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""pet-hatch pack — compose discrete per-state frames into one sprite sheet.
+"""pet-hatch pack — compose the per-state frames into one sprite sheet + atlas.
 
-Reads a frames dir's anim.json, collects every frame it references, optionally
-registers each frame to a common center (kills the position drift that makes
-image-to-image frames jitter when cycled), downscales to a square tile, and
-packs them into a single sheet.png plus a sheet.json mapping each frame *name*
-to its {x,y,w,h} rect.
+Reads a frames dir's anim.json, collects every frame it references, and grid-
+packs them into a single transparent sheet.png plus a sheet.json mapping each
+frame name to its {x,y,w,h} rect. Frames come from strip.py already framed by
+Codex's fit_to_cell (uniform transparent cells), so packing just lays them out
+at native size — no resampling, no recentering.
 
-The manifest (anim.json) stays the semantic source of truth — it still lists
-named frames per state; the sheet + atlas are a *derived* renderer bundle (a
-single decode, GPU-friendly, portable/Codex-exportable). A renderer that finds
-sheet.json crops from the sheet; one that doesn't falls back to the discrete
-PNGs. Frames keep their flat chroma green; the renderer keys it transparent.
+The manifest (anim.json) stays the semantic source of truth; the sheet + atlas
+are a derived, swappable renderer bundle (one decode, portable/Codex-exportable).
+A renderer that finds sheet.json crops from the sheet; one that doesn't loads
+the discrete PNGs.
 """
 from __future__ import annotations
 
@@ -23,16 +22,12 @@ from pathlib import Path
 
 try:
     from PIL import Image
-    import numpy as np
 except ImportError as e:
-    print(f"pack: requires Pillow + numpy ({e})", file=sys.stderr)
+    print(f"pack: requires Pillow ({e})", file=sys.stderr)
     sys.exit(2)
-
-GREEN = (0, 177, 64)  # #00b140 — matches the renderer's chroma key
 
 
 def referenced_frames(anim: dict) -> list[str]:
-    """Every distinct frame file the manifest references, in stable order."""
     seen: dict[str, None] = {}
     for st in anim.get("states", {}).values():
         for f in st.get("frames", []):
@@ -40,38 +35,10 @@ def referenced_frames(anim: dict) -> list[str]:
     return sorted(seen)
 
 
-def content_center(img: Image.Image) -> tuple[int, int]:
-    """Center of the non-green content's bounding box (image px, top-left origin)."""
-    a = np.asarray(img, dtype=np.int16)
-    r, g, b = a[..., 0], a[..., 1], a[..., 2]
-    is_green = (g > 90) & (g > r + 40) & (g > b + 40)
-    ys, xs = np.where(~is_green)
-    if xs.size == 0:
-        return img.width // 2, img.height // 2
-    return (int(xs.min()) + int(xs.max())) // 2, (int(ys.min()) + int(ys.max())) // 2
-
-
-def register(img: Image.Image) -> Image.Image:
-    """Translate the frame so its content bbox center sits at the image center,
-    padding exposed edges with chroma green. Removes the per-frame position
-    drift that reads as jitter; preserves each pose's natural scale."""
-    cx, cy = content_center(img)
-    dx, dy = img.width // 2 - cx, img.height // 2 - cy
-    if dx == 0 and dy == 0:
-        return img
-    canvas = Image.new("RGB", img.size, GREEN)
-    canvas.paste(img, (dx, dy))
-    return canvas
-
-
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Pack per-state frames into a sprite sheet + atlas.")
     ap.add_argument("--frames-dir", required=True, type=Path,
-                    help="dir holding anim.json + the discrete <state>*.png frames")
-    ap.add_argument("--tile", type=int, default=512,
-                    help="square tile size in the sheet (px); 512 stays crisp on retina")
-    ap.add_argument("--no-register", action="store_true",
-                    help="skip center-registration (keep raw frame positions)")
+                    help="dir holding anim.json + the discrete <state>.f*.png frames")
     ap.add_argument("--sheet", default="sheet.png", help="output sheet filename (in frames-dir)")
     ap.add_argument("--atlas", default="sheet.json", help="output atlas filename (in frames-dir)")
     args = ap.parse_args(argv)
@@ -87,33 +54,31 @@ def main(argv: list[str] | None = None) -> int:
         print("pack: anim.json references no frames", file=sys.stderr)
         return 2
 
-    tile = args.tile
-    cols = math.ceil(math.sqrt(len(frames)))
-    rows = math.ceil(len(frames) / cols)
-    sheet = Image.new("RGB", (cols * tile, rows * tile), GREEN)
+    imgs: dict[str, Image.Image] = {}
+    for name in frames:
+        p = fdir / name
+        if p.exists():
+            imgs[name] = Image.open(p).convert("RGBA")
+    if not imgs:
+        print("pack: no frame files found", file=sys.stderr)
+        return 2
+
+    tw = max(im.width for im in imgs.values())
+    th = max(im.height for im in imgs.values())
+    cols = math.ceil(math.sqrt(len(imgs)))
+    rows = math.ceil(len(imgs) / cols)
+    sheet = Image.new("RGBA", (cols * tw, rows * th), (0, 0, 0, 0))
     atlas: dict[str, dict] = {}
 
-    missing = 0
-    for i, name in enumerate(frames):
-        p = fdir / name
-        if not p.exists():
-            print(f"pack: skip missing frame {name}", file=sys.stderr)
-            missing += 1
-            continue
-        img = Image.open(p).convert("RGB")
-        if not args.no_register:
-            img = register(img)
-        img = img.resize((tile, tile), Image.LANCZOS)
-        x, y = (i % cols) * tile, (i // cols) * tile
-        sheet.paste(img, (x, y))
-        atlas[name] = {"x": x, "y": y, "w": tile, "h": tile}
+    for i, (name, im) in enumerate(imgs.items()):
+        x, y = (i % cols) * tw, (i // cols) * th
+        sheet.alpha_composite(im, (x, y))
+        atlas[name] = {"x": x, "y": y, "w": im.width, "h": im.height}
 
     sheet_path = fdir / args.sheet
     sheet.save(sheet_path)
-    (fdir / args.atlas).write_text(json.dumps({"tile": tile, "frames": atlas}, indent=2))
-    reg = "registered" if not args.no_register else "raw"
-    print(f"pack: wrote {sheet_path} ({cols}x{rows} grid, {tile}px {reg} tiles, "
-          f"{len(atlas)} frames{f', {missing} missing' if missing else ''})")
+    (fdir / args.atlas).write_text(json.dumps({"tile": [tw, th], "frames": atlas}, indent=2))
+    print(f"pack: wrote {sheet_path} ({cols}x{rows} grid, {tw}x{th} transparent cells, {len(atlas)} frames)")
     print(f"pack: wrote {fdir / args.atlas}")
     return 0
 

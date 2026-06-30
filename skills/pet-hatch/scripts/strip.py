@@ -1,27 +1,20 @@
 #!/usr/bin/env python3
-"""pet-hatch strip — generate per-state animations as coherent sprite strips.
+"""pet-hatch strip — generate per-state animations as coherent sprite strips,
+then extract frames with Codex hatch-pet's proven pipeline (ported verbatim).
 
-This is the registration-by-construction approach Codex's hatch-pet uses, and
-it fixes the jitter that independent per-frame image-to-image generation causes:
-instead of generating each in-between frame on its own (so the character drifts
-in position between frames), it asks the image model to draw ALL frames of a
-state in ONE horizontal strip, anchored to a layout-guide image that fixes the
-frame count, spacing, and centering. Because the whole strip is one coherent
-image, the body stays planted across frames and only the intended part moves
-(e.g. the eyes blink) — no post-hoc re-centering that would shove the body.
+Generation (our part): draw all of a state's frames together in ONE horizontal
+strip, conditioned on the state's pose keyframe (identity + style) plus a layout
+guide (frame count + slot centering). One coherent image keeps the body planted.
 
-Per state it:
-  1. builds a layout guide (N equal slots, safe-area + center crosshairs),
-  2. calls generate_image.py with TWO inputs — the state's pose keyframe
-     (identity + style + pose) and the guide (layout only) — at a wide size,
-  3. slices the returned strip into N frames, cropping+centering each on its
-     non-green bounding box (stable within a loop, so it doesn't move the body),
-  4. writes <state>.f{i}.png frames (flat green, like the rest of the bundle)
-     and updates anim.json.
+Extraction (Codex's part, faithful): chroma-key the strip to transparent, group
+each frame's sprite by connected components (the N largest blobs as seeds,
+ordered left-to-right, with stray bits attached to the nearest seed), then
+`fit_to_cell` each group — crop to its alpha bbox, scale to fit (never upscale),
+and bbox-center it in a transparent cell. This is exactly what
+~/.codex/skills/hatch-pet/scripts/extract_strip_frames.py does; we follow it as
+our proven base before adding anything of our own.
 
-Frames stay on flat chroma green; the renderer keys them transparent. Grounded
-in ~/.codex/skills/hatch-pet (strip generation + layout guides) but keeps our
-SEMANTIC state vocabulary and green-screen/anim.json bundle.
+Output frames are transparent (Codex's format); the renderer composites them.
 """
 from __future__ import annotations
 
@@ -36,14 +29,17 @@ from pathlib import Path
 try:
     from PIL import Image, ImageDraw
     import numpy as np
+    from scipy import ndimage
 except ImportError as e:
-    print(f"strip: requires Pillow + numpy ({e})", file=sys.stderr)
+    print(f"strip: requires Pillow + numpy + scipy ({e})", file=sys.stderr)
     sys.exit(2)
 
-GREEN = (0, 177, 64)           # #00b140 — the bundle's chroma key
+CHROMA = (0, 177, 64)          # #00b140 — the strip background we key out
+KEY_THRESHOLD = 120.0          # euclidean RGB distance to the key (Codex default 96; widened for our green)
 OUT_W, OUT_H = 1536, 1024      # generation canvas (a supported wide gpt-image size)
-CELL = 512                     # square output frame, crisp on retina
-CELL_PAD = 18                  # safe border kept clear inside each frame
+# Codex's atlas cell is 192x208; we keep that aspect at 2x for retina crispness.
+CELL_W, CELL_H = 384, 416
+SAFE = 20                      # Codex's 10px safe border, at 2x
 
 # Per-state recipe: frame count, loop timing, the animation "purpose" line, and
 # state-specific requirements that keep the body PLANTED (only the intended part
@@ -101,9 +97,9 @@ Background & cleanup:
 
 def build_layout_guide(frames: int, path: Path) -> None:
     """A light guide: N equal slots, each with an outer box, an inset safe-area
-    rectangle, and dashed center crosshairs. Layout signal only — the prompt
-    forbids reproducing it. Same overall aspect as the generation canvas so the
-    slots map straight onto the output grid."""
+    rectangle, and dashed center crosshairs (Codex's layout-guide construction).
+    Layout signal only — the prompt forbids reproducing it. Same overall aspect
+    as the generation canvas so slots map straight onto the output grid."""
     img = Image.new("RGB", (OUT_W, OUT_H), "#f7f7f7")
     draw = ImageDraw.Draw(img)
     cw = OUT_W / frames
@@ -115,115 +111,95 @@ def build_layout_guide(frames: int, path: Path) -> None:
         draw.rectangle((left + mx, my, right - mx, OUT_H - 1 - my), outline="#2f80ed", width=3)
         cx = (left + right) // 2
         cy = OUT_H // 2
-        for y in range(my, OUT_H - my, 24):           # dashed vertical centerline
+        for y in range(my, OUT_H - my, 24):
             draw.line((cx, y, cx, min(y + 12, OUT_H - my)), fill="#bbbbbb", width=2)
-        for x in range(left + mx, right - mx, 24):    # dashed horizontal centerline
+        for x in range(left + mx, right - mx, 24):
             draw.line((x, cy, min(x + 12, right - mx), cy), fill="#bbbbbb", width=2)
     img.save(path)
 
 
-def non_green_bbox(rgb: np.ndarray):
-    """Bounding box (l, t, r, b) of the non-green (fox) pixels, or None."""
-    r, g, b = rgb[..., 0].astype(int), rgb[..., 1].astype(int), rgb[..., 2].astype(int)
-    is_green = (g > 90) & (g > r + 40) & (g > b + 40)
-    ys, xs = np.where(~is_green)
-    if xs.size == 0:
-        return None
-    return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
+# --- Codex extract_strip_frames.py, ported ---
+
+def remove_chroma(arr: np.ndarray) -> np.ndarray:
+    """RGB strip -> RGBA with the chroma green keyed transparent, by euclidean
+    distance to the key (Codex `remove_chroma_background`)."""
+    diff = arr.astype(np.int32) - np.array(CHROMA, dtype=np.int32)
+    dist = np.sqrt((diff * diff).sum(axis=-1))
+    alpha = np.where(dist <= KEY_THRESHOLD, 0, 255).astype(np.uint8)
+    return np.dstack([arr.astype(np.uint8), alpha])
 
 
-def green_mask(rgb: np.ndarray) -> np.ndarray:
-    r, g, b = rgb[..., 0].astype(int), rgb[..., 1].astype(int), rgb[..., 2].astype(int)
-    return ~((g > 90) & (g > r + 40) & (g > b + 40))     # True where fox (non-green)
+def fit_to_cell(sprite: Image.Image) -> Image.Image:
+    """Codex `fit_to_cell`: crop to the alpha bbox, scale to fit the cell minus a
+    safe border (never upscale), then bbox-center in a transparent cell."""
+    bbox = sprite.getbbox()
+    target = Image.new("RGBA", (CELL_W, CELL_H), (0, 0, 0, 0))
+    if bbox is None:
+        return target
+    sp = sprite.crop(bbox)
+    scale = min((CELL_W - SAFE) / sp.width, (CELL_H - SAFE) / sp.height, 1.0)
+    if scale != 1.0:
+        sp = sp.resize((max(1, round(sp.width * scale)), max(1, round(sp.height * scale))), Image.LANCZOS)
+    left = (CELL_W - sp.width) // 2
+    top = (CELL_H - sp.height) // 2
+    target.alpha_composite(sp, (left, top))
+    return target
 
 
-def phase_shift(ref: np.ndarray, m: np.ndarray) -> tuple[int, int]:
-    """Integer (dy, dx) translation that best aligns silhouette mask `m` onto
-    `ref`, via FFT phase correlation. Weighted by silhouette area, so it locks
-    the dominant body mass and ignores small moving parts (ears, paws, tail)."""
-    if ref.sum() == 0 or m.sum() == 0:
-        return 0, 0
-    F, G = np.fft.fft2(ref), np.fft.fft2(m)
-    R = F * np.conj(G)
-    R /= np.abs(R) + 1e-9
-    c = np.fft.ifft2(R).real
-    dy, dx = np.unravel_index(int(np.argmax(c)), c.shape)
-    h, w = ref.shape
-    if dy > h // 2:
-        dy -= h
-    if dx > w // 2:
-        dx -= w
-    return int(dy), int(dx)
-
-
-def shift_green(rgb: np.ndarray, dy: int, dx: int) -> np.ndarray:
-    """Translate the slot by (dy, dx), filling exposed edges with chroma green."""
-    if dy == 0 and dx == 0:
-        return rgb
-    h, w = rgb.shape[:2]
-    out = np.empty_like(rgb)
-    out[:] = GREEN
-    sy0, sy1 = max(0, -dy), min(h, h - dy)
-    sx0, sx1 = max(0, -dx), min(w, w - dx)
-    out[sy0 + dy:sy1 + dy, sx0 + dx:sx1 + dx] = rgb[sy0:sy1, sx0:sx1]
-    return out
+def group_image(rgba: np.ndarray, lbl: np.ndarray, ids: list[int], pad: int = 8) -> Image.Image:
+    """Crop the union bbox of a component group (Codex `component_group_image`),
+    keeping only the group's pixels (everything else transparent)."""
+    gmask = np.isin(lbl, ids)
+    ys, xs = np.where(gmask)
+    l = max(0, int(xs.min()) - pad)
+    t = max(0, int(ys.min()) - pad)
+    r = min(rgba.shape[1], int(xs.max()) + 1 + pad)
+    b = min(rgba.shape[0], int(ys.max()) + 1 + pad)
+    sub = np.zeros((b - t, r - l, 4), dtype=np.uint8)
+    gm = gmask[t:b, l:r]
+    sub[gm] = rgba[t:b, l:r][gm]
+    return Image.fromarray(sub, "RGBA")
 
 
 def slice_strip(strip: Image.Image, frames: int) -> list[Image.Image]:
-    """Split the strip into N equal columns, then REGISTER every frame to the
-    first by translation (phase correlation on the silhouette) so the body is
-    locked across frames — the fix for asymmetric characters, where bbox-center
-    (Codex's fit_to_cell) and a fixed window both fail: a big tail or a raised
-    paw shifts the bbox, and the model itself draws the character at slightly
-    different x in each slot. Registration aligns the dominant mass (the body);
-    ears/paws/tail still move locally. Then crop all frames with ONE shared
-    window/scale/offset, so nothing the slicer does can reintroduce a shift."""
+    """Faithful Codex extraction: chroma-key to transparent, group each frame by
+    connected components (N largest as seeds left-to-right, strays attached to
+    the nearest seed), then fit_to_cell each group. Falls back to equal slots if
+    fewer than N blobs are found."""
     strip = strip.convert("RGB").resize((OUT_W, OUT_H), Image.LANCZOS)
-    arr = np.asarray(strip)
-    # Inset each slot to drop any thin frame-divider sliver at a slot boundary.
-    mx = max(10, round(OUT_W / frames * 0.05))
-    my = 12
-    raw = [arr[my:OUT_H - my, round(i * OUT_W / frames) + mx: round((i + 1) * OUT_W / frames) - mx, :]
-           for i in range(frames)]
-    # Standardize to a common shape so masks/FFTs line up.
-    sh = min(s.shape[0] for s in raw)
-    sw = min(s.shape[1] for s in raw)
-    slots = [s[:sh, :sw, :] for s in raw]
+    rgba = remove_chroma(np.asarray(strip))
+    src = Image.fromarray(rgba, "RGBA")
+    fg = rgba[..., 3] > 16
+    lbl, n = ndimage.label(fg)
+    if n == 0:
+        return [Image.new("RGBA", (CELL_W, CELL_H), (0, 0, 0, 0)) for _ in range(frames)]
 
-    # Register every slot onto the first via silhouette phase correlation.
-    ref = green_mask(slots[0]).astype(float)
-    aligned = [slots[0]]
-    for s in slots[1:]:
-        dy, dx = phase_shift(ref, green_mask(s).astype(float))
-        aligned.append(shift_green(s, dy, dx))
+    counts = np.bincount(lbl.ravel())
+    ids = list(range(1, n + 1))
+    largest = int(counts[1:].max())
+    cents = ndimage.center_of_mass(fg, lbl, ids)
+    cx = {i: cents[k][1] for k, i in enumerate(ids)}
 
-    # Shared crop window = union of the aligned silhouettes' bboxes.
-    union = None
-    for s in aligned:
-        bb = non_green_bbox(s)
-        if bb is None:
+    seed_thr = max(120, largest * 0.20)
+    seeds = [i for i in ids if counts[i] >= seed_thr]
+    if len(seeds) < frames:
+        seeds = sorted(ids, key=lambda i: -counts[i])[:frames]
+    if len(seeds) < frames:                               # blobs merged — equal-slot fallback
+        return [fit_to_cell(src.crop((round(i * OUT_W / frames), 0,
+                                      round((i + 1) * OUT_W / frames), OUT_H)))
+                for i in range(frames)]
+    seeds = sorted(sorted(seeds, key=lambda i: -counts[i])[:frames], key=lambda i: cx[i])
+
+    seed_set = set(seeds)
+    groups = {s: [s] for s in seeds}
+    noise = max(12, largest * 0.002)
+    for i in ids:
+        if i in seed_set or counts[i] < noise:
             continue
-        union = bb if union is None else (
-            min(union[0], bb[0]), min(union[1], bb[1]),
-            max(union[2], bb[2]), max(union[3], bb[3]))
-    if union is None:
-        return [Image.new("RGB", (CELL, CELL), GREEN) for _ in slots]
+        j = min(seeds, key=lambda s: abs(cx[s] - cx[i]))
+        groups[j].append(i)
 
-    l, t, r, b = union
-    cw, ch = r - l, b - t
-    avail = CELL - 2 * CELL_PAD
-    scale = min(avail / cw, avail / ch, 1.0)
-    w, h = max(1, round(cw * scale)), max(1, round(ch * scale))
-    off = ((CELL - w) // 2, (CELL - h) // 2)            # one offset for every frame
-
-    out: list[Image.Image] = []
-    for s in aligned:
-        crop = Image.fromarray(s[t:b, l:r, :])           # identical window every frame
-        sprite = crop.resize((w, h), Image.LANCZOS)
-        cell = Image.new("RGB", (CELL, CELL), GREEN)
-        cell.paste(sprite, off)
-        out.append(cell)
-    return out
+    return [fit_to_cell(group_image(rgba, lbl, groups[s])) for s in seeds]
 
 
 def write_frames(state: str, fdir: Path, strip_img: Image.Image, n: int) -> None:
@@ -237,7 +213,6 @@ def run_state(state: str, fdir: Path, image_script: Path, quality: str,
     n = rec["frames"]
     raw_strip = fdir / f"{state}.strip.png"
 
-    # Re-slice an already-generated strip (free; no image call).
     if reslice:
         if not raw_strip.exists():
             print(f"strip: {state} — no saved strip to reslice ({raw_strip})", file=sys.stderr)
@@ -275,7 +250,6 @@ def run_state(state: str, fdir: Path, image_script: Path, quality: str,
         if r.returncode != 0 or not strip_out.exists():
             print(f"strip: {state} FAIL\n{(r.stderr or '')[-500:]}", file=sys.stderr)
             return False
-        # Persist the raw strip so future slicing changes need no regeneration.
         Image.open(strip_out).convert("RGB").save(raw_strip)
 
     write_frames(state, fdir, Image.open(raw_strip), n)

@@ -14,27 +14,26 @@ description: >
 
 Author looping animations for a character pet, one loop per **semantic state**.
 
-## Why strips (the important part)
+## Why strips, and following Codex faithfully
 
 The naive approach — generate each frame independently with image-to-image —
 **drifts**: the model redraws the character at a slightly different position and
-size every call, so cycling the frames jitters. Re-centering each frame by its
-bounding box doesn't fix it; it makes it worse, because any change to the
-silhouette's extent (a tail flick, a raised paw, a blink that changes the
-outline) moves the bbox center, so the body *slides*.
+size every call, so cycling the frames jitters.
 
-The fix, from Codex's hatch-pet, is **registration by construction**: draw all
-of a state's frames **together in one horizontal strip**, conditioned on a
-*layout guide* image that fixes the frame count, slot spacing, and centering.
-Because the strip is one coherent image, the model keeps the body planted across
-frames — only the intended part moves. Then slice on a fixed grid.
+The fix, from Codex's hatch-pet, is to draw all of a state's frames **together
+in one horizontal strip**, conditioned on a *layout guide* image that fixes the
+frame count, slot spacing, and centering. One coherent image keeps the body
+planted; only the intended part moves.
 
-When slicing, cut **every frame of a state with one shared crop window, scale,
-and paste offset** (the union of the frames' bounding boxes) — never a per-frame
-bbox recenter. A shared window preserves exactly where the model drew each frame
-(planted); per-frame centering reintroduces the slide. (Codex's `fit_to_cell`
-recenters per frame and gets away with it only because its cells are 192px and
-the sprite fills them; in a larger cell the recenter is visible sliding.)
+For extraction we follow **Codex's proven pipeline verbatim** (its
+`extract_strip_frames.py`): chroma-key the strip to transparent, group each
+frame's sprite by **connected components** (the N largest blobs as seeds,
+ordered left-to-right, with stray bits attached to the nearest seed — so the
+attached tail is never clipped and neighbor-bleed slivers are dropped), then
+`fit_to_cell` each group: crop to its alpha bbox, scale to fit, **bbox-center**
+in a transparent cell. We use Codex's cell aspect (192×208) at 2× for retina.
+This is the base; we don't add our own alignment tricks on top of it until we
+have a reason grounded in this working baseline.
 
 ## Pipeline (primary: `strip.py`)
 
@@ -44,12 +43,12 @@ the sprite fills them; in a larger cell the recenter is visible sliding.)
      │  generate_image.py --reference <state>.png --reference <guide> --size 1536x1024
      ▼
 <state>.strip.png  (all N frames in one coherent image; body planted)
-     │  slice: N equal slots → one shared union-bbox window, scale, offset
+     │  slice (Codex): chroma→transparent, connected-component groups, fit_to_cell
      ▼
-<state>.f0..f{N-1}.png  (flat-green frames; renderer keys transparent)
+<state>.f0..f{N-1}.png  (transparent cells, bbox-centered)
      ▼
 anim.json   { states: { <state>: { frames:[...], frameMs, mode:"loop" } } }   ← semantic truth
-     │  pack.py  (downscale + grid-pack every referenced frame)
+     │  pack.py  (grid-pack every referenced frame, transparent sheet)
      ▼
 sheet.png + sheet.json  (one decode; name → {x,y,w,h})   ← derived renderer bundle
      ▼
