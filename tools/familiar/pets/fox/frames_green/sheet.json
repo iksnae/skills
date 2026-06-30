@@ -1,123 +1,243 @@
 {
   "tile": 512,
   "frames": {
-    "awaiting-human.m0.png": {
+    "awaiting-human.f0.png": {
       "x": 0,
       "y": 0,
       "w": 512,
       "h": 512
     },
-    "awaiting-human.png": {
+    "awaiting-human.f1.png": {
       "x": 512,
       "y": 0,
       "w": 512,
       "h": 512
     },
-    "failed.m0.png": {
+    "awaiting-human.f2.png": {
       "x": 1024,
       "y": 0,
       "w": 512,
       "h": 512
     },
-    "failed.png": {
+    "awaiting-human.f3.png": {
       "x": 1536,
       "y": 0,
       "w": 512,
       "h": 512
     },
-    "idle.m0.png": {
+    "failed.f0.png": {
       "x": 2048,
       "y": 0,
       "w": 512,
       "h": 512
     },
-    "idle.png": {
+    "failed.f1.png": {
+      "x": 2560,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "failed.f2.png": {
+      "x": 3072,
+      "y": 0,
+      "w": 512,
+      "h": 512
+    },
+    "failed.f3.png": {
       "x": 0,
       "y": 512,
       "w": 512,
       "h": 512
     },
-    "milestone.m0.png": {
+    "failed.f4.png": {
       "x": 512,
       "y": 512,
       "w": 512,
       "h": 512
     },
-    "milestone.m1.png": {
+    "idle.f0.png": {
       "x": 1024,
       "y": 512,
       "w": 512,
       "h": 512
     },
-    "milestone.png": {
+    "idle.f1.png": {
       "x": 1536,
       "y": 512,
       "w": 512,
       "h": 512
     },
-    "reviewing.m0.png": {
+    "idle.f2.png": {
       "x": 2048,
       "y": 512,
       "w": 512,
       "h": 512
     },
-    "reviewing.m1.png": {
+    "idle.f3.png": {
+      "x": 2560,
+      "y": 512,
+      "w": 512,
+      "h": 512
+    },
+    "idle.f4.png": {
+      "x": 3072,
+      "y": 512,
+      "w": 512,
+      "h": 512
+    },
+    "idle.f5.png": {
       "x": 0,
       "y": 1024,
       "w": 512,
       "h": 512
     },
-    "reviewing.png": {
+    "milestone.f0.png": {
       "x": 512,
       "y": 1024,
       "w": 512,
       "h": 512
     },
-    "sleeping.m0.png": {
+    "milestone.f1.png": {
       "x": 1024,
       "y": 1024,
       "w": 512,
       "h": 512
     },
-    "sleeping.png": {
+    "milestone.f2.png": {
       "x": 1536,
       "y": 1024,
       "w": 512,
       "h": 512
     },
-    "thinking.m0.png": {
+    "milestone.f3.png": {
       "x": 2048,
       "y": 1024,
       "w": 512,
       "h": 512
     },
-    "thinking.m1.png": {
+    "milestone.f4.png": {
+      "x": 2560,
+      "y": 1024,
+      "w": 512,
+      "h": 512
+    },
+    "reviewing.f0.png": {
+      "x": 3072,
+      "y": 1024,
+      "w": 512,
+      "h": 512
+    },
+    "reviewing.f1.png": {
       "x": 0,
       "y": 1536,
       "w": 512,
       "h": 512
     },
-    "thinking.png": {
+    "reviewing.f2.png": {
       "x": 512,
       "y": 1536,
       "w": 512,
       "h": 512
     },
-    "working.m0.png": {
+    "reviewing.f3.png": {
       "x": 1024,
       "y": 1536,
       "w": 512,
       "h": 512
     },
-    "working.m1.png": {
+    "reviewing.f4.png": {
       "x": 1536,
       "y": 1536,
       "w": 512,
       "h": 512
     },
-    "working.png": {
+    "sleeping.f0.png": {
       "x": 2048,
       "y": 1536,
+      "w": 512,
+      "h": 512
+    },
+    "sleeping.f1.png": {
+      "x": 2560,
+      "y": 1536,
+      "w": 512,
+      "h": 512
+    },
+    "sleeping.f2.png": {
+      "x": 3072,
+      "y": 1536,
+      "w": 512,
+      "h": 512
+    },
+    "sleeping.f3.png": {
+      "x": 0,
+      "y": 2048,
+      "w": 512,
+      "h": 512
+    },
+    "thinking.f0.png": {
+      "x": 512,
+      "y": 2048,
+      "w": 512,
+      "h": 512
+    },
+    "thinking.f1.png": {
+      "x": 1024,
+      "y": 2048,
+      "w": 512,
+      "h": 512
+    },
+    "thinking.f2.png": {
+      "x": 1536,
+      "y": 2048,
+      "w": 512,
+      "h": 512
+    },
+    "thinking.f3.png": {
+      "x": 2048,
+      "y": 2048,
+      "w": 512,
+      "h": 512
+    },
+    "thinking.f4.png": {
+      "x": 2560,
+      "y": 2048,
+      "w": 512,
+      "h": 512
+    },
+    "working.f0.png": {
+      "x": 3072,
+      "y": 2048,
+      "w": 512,
+      "h": 512
+    },
+    "working.f1.png": {
+      "x": 0,
+      "y": 2560,
+      "w": 512,
+      "h": 512
+    },
+    "working.f2.png": {
+      "x": 512,
+      "y": 2560,
+      "w": 512,
+      "h": 512
+    },
+    "working.f3.png": {
+      "x": 1024,
+      "y": 2560,
+      "w": 512,
+      "h": 512
+    },
+    "working.f4.png": {
+      "x": 1536,
+      "y": 2560,
+      "w": 512,
+      "h": 512
+    },
+    "working.f5.png": {
+      "x": 2048,
+      "y": 2560,
       "w": 512,
       "h": 512
     }
