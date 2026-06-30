@@ -263,7 +263,8 @@ function installClaudeCode(write) {
   const dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
   const file = path.join(dir, 'settings.json');
   const self = path.join(__dirname, 'familiar.mjs');
-  const emitHook = (ev) => ({ hooks: [{ type: 'command', command: `node ${self} emit ${ev}`, timeout: 5 }] });
+  // `hook` (not `emit`): the wrapper also speaks + flashes from the payload.
+  const emitHook = (ev) => ({ hooks: [{ type: 'command', command: `node ${self} hook ${ev}`, timeout: 5 }] });
   const MAP = {
     SessionStart: 'session.start',
     UserPromptSubmit: 'prompt.submit',
@@ -300,6 +301,77 @@ function installClaudeCode(write) {
   fs.writeFileSync(file, JSON.stringify(cfg, null, 2));
   process.stdout.write(`installed familiar hooks into ${file} (backup: ${file}.familiar.bak)${note}\n`);
   process.stdout.write('restart Claude Code for the hooks to take effect.\n');
+}
+
+// --- live activity adapter: derive flash events + speech from a hook payload ---
+//
+// A host hook calls `familiar hook <canonical-event>` and pipes its JSON payload
+// on stdin. We always emit the canonical state event (idle/thinking/working/…),
+// and for noteworthy moments we ALSO derive a richer flash (milestone/succeeded/
+// failed) and a short spoken message — so the pet reacts to real work, not just
+// abstract state. The derivation is the only host-specific knowledge; the
+// semantic events it emits stay the renderer-agnostic contract.
+
+const SAY = {
+  ack: ['On it.', 'Let me look…', 'Digging in.', 'Got it — working.', 'Sure thing.'],
+  done: ['Done — back to you.', 'Wrapped up.', 'All yours.', 'That’s done.'],
+};
+const pick = (arr) => arr[Math.floor(nowMs() / 1000) % arr.length];
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+
+function bashOutput(resp) {
+  if (!resp) return '';
+  if (typeof resp === 'string') return resp;
+  return [resp.stdout, resp.stderr, resp.output, resp.error].filter(Boolean).join(' ').toString();
+}
+
+// A Bash command + its result -> an optional { event, message }.
+function deriveBash(p) {
+  const cmd = String((p.tool_input || {}).command || '').toLowerCase();
+  const out = bashOutput(p.tool_response).toLowerCase();
+  const failed = /\b(fail|failed|error|exception|traceback|not ok|✗)\b/.test(out);
+  if (/\bgit\s+commit\b/.test(cmd)) return { event: 'commit', message: 'Committed ✓' };
+  if (/\bgit\s+push\b/.test(cmd)) return { event: 'push', message: 'Pushed it up ✓' };
+  if (/\b(pytest|swift test|go test|cargo test|jest|vitest|rspec)\b/.test(cmd)
+      || /\b(npm|yarn|pnpm)\s+(run\s+)?test\b/.test(cmd)) {
+    return failed ? { event: 'test.fail', message: 'Tests failed — on it.' }
+                  : { event: 'test.pass', message: 'Tests passed ✓' };
+  }
+  return {};
+}
+
+function deriveFromHook(canon, p) {
+  switch (canon) {
+    case 'prompt.submit': return { message: pick(SAY.ack) };
+    case 'turn.stop':     return { message: pick(SAY.done) };
+    case 'await.input': {
+      const m = String((p && p.message) || '').trim();
+      return { message: m ? clip(m, 120) : 'I need you on this 👀' };
+    }
+    case 'session.start':
+      return (p && p.source === 'resume') ? { message: 'Back at it — watching your session.' } : {};
+    case 'tool.end':
+      return (p && p.tool_name === 'Bash') ? deriveBash(p) : {};
+    default: return {};
+  }
+}
+
+function runHook(rest) {
+  const canon = rest[0];
+  let p = {};
+  try {
+    // Hooks pipe JSON on stdin; skip the read on a TTY so manual calls don't hang.
+    if (!process.stdin.isTTY) {
+      const raw = fs.readFileSync(0, 'utf8');
+      if (raw && raw.trim()) p = JSON.parse(raw);
+    }
+  } catch { /* no/invalid stdin — fall back to the bare event */ }
+  if (canon) emit(canon);
+  let d = {};
+  try { d = deriveFromHook(canon, p) || {}; } catch { d = {}; }
+  if (d.event) emit(d.event);
+  if (d.message) emit('message', d.message);
+  process.exit(0);
 }
 
 function runDemo() {
@@ -565,6 +637,7 @@ usage:
   familiar watch                            animate the pet for the current state (Ctrl-C quits)
   familiar statusline                       print a one-line pet (for Claude Code statusLine)
   familiar install claude-code [--write]    wire lifecycle hooks (+statusline) into settings.json
+  familiar hook <event>                     host-hook entry: emit <event> + derived speech/flash (stdin payload)
   familiar pets                             list available pet bundles
   familiar overlay [pet] [--restart|--stop] launch the native desktop pet (auto-builds first run)
   familiar hatch --name N --prompt "..."    hatch a new pet (base -> strips -> sheet); [--reference img]...
@@ -592,6 +665,7 @@ try {
       process.exit(0);
       break;
     }
+    case 'hook': { runHook(rest); break; } // host hook: emit event (+derived speech/flash) from stdin payload
     case 'state': {
       const s = readState();
       process.stdout.write(JSON.stringify({ ...s, ...resolve(s) }, null, 2) + '\n');
@@ -614,7 +688,7 @@ try {
     default: { process.stderr.write(`unknown command: ${cmd}\n`); printHelp(); process.exit(2); }
   }
 } catch (e) {
-  if (cmd === 'emit') process.exit(0); // an emitter must never block a host hook
+  if (cmd === 'emit' || cmd === 'hook') process.exit(0); // never block a host hook
   process.stderr.write(String((e && e.stack) || e) + '\n');
   process.exit(1);
 }
