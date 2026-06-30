@@ -21,7 +21,7 @@ import UniformTypeIdentifiers
 
 // MARK: - State (read side)
 
-struct Resolved { let state: String; let attention: String }
+struct Resolved { let state: String; let attention: String; let message: String? }
 
 final class StateReader {
     let url: URL
@@ -35,7 +35,7 @@ final class StateReader {
     func read() -> Resolved {
         guard let data = try? Data(contentsOf: url),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return Resolved(state: "idle", attention: "none") }
+        else { return Resolved(state: "idle", attention: "none", message: nil) }
         let base = (obj["base"] as? String) ?? "idle"
         var state = base
         if let flash = obj["flash"] as? [String: Any],
@@ -43,7 +43,15 @@ final class StateReader {
            let until = flash["until"] as? Double {
             if Date().timeIntervalSince1970 * 1000.0 < until { state = fs }
         }
-        return Resolved(state: state, attention: Self.attention(for: state))
+        // `message` is its own render-time-decaying channel (a speech bubble).
+        var message: String? = nil
+        if let m = obj["message"] as? [String: Any],
+           let text = m["text"] as? String,
+           let until = m["until"] as? Double,
+           Date().timeIntervalSince1970 * 1000.0 < until {
+            message = text
+        }
+        return Resolved(state: state, attention: Self.attention(for: state), message: message)
     }
 
     static func attention(for s: String) -> String {
@@ -425,6 +433,61 @@ final class PetView: NSView {
     }
 }
 
+// MARK: - Speech bubble (a separate floating panel that tracks the pet)
+//
+// The `message` channel is orthogonal to state: a transient bubble that floats
+// above the pet and points down at it. Its own borderless panel (rather than
+// drawing inside the pet panel) lets it size to its text and overflow the pet's
+// square without clipping. It ignores mouse events so the pet stays draggable.
+
+final class BubbleView: NSView {
+    var text: String = "" { didSet { needsDisplay = true } }
+    private let maxTextWidth: CGFloat = 200
+    private let pad = NSSize(width: 12, height: 9)
+    private let corner: CGFloat = 11
+    private let tailH: CGFloat = 9
+    private let tailW: CGFloat = 16
+    private let font = NSFont.systemFont(ofSize: 12.5, weight: .medium)
+
+    private func attr() -> NSAttributedString {
+        let para = NSMutableParagraphStyle()
+        para.alignment = .center
+        para.lineBreakMode = .byWordWrapping
+        return NSAttributedString(string: text, attributes: [
+            .font: font, .foregroundColor: NSColor.white, .paragraphStyle: para])
+    }
+    private func textBounds() -> NSRect {
+        attr().boundingRect(with: NSSize(width: maxTextWidth, height: 600),
+                            options: [.usesLineFragmentOrigin, .usesFontLeading])
+    }
+    // The view size needed for the current text (rounded body + downward tail).
+    func fittingSize() -> NSSize {
+        let tb = textBounds()
+        return NSSize(width: max(ceil(tb.width) + pad.width * 2, 44),
+                      height: ceil(tb.height) + pad.height * 2 + tailH)
+    }
+    override func draw(_ dirty: NSRect) {
+        guard !text.isEmpty else { return }
+        let b = bounds
+        let bodyRect = NSRect(x: 0, y: tailH, width: b.width, height: b.height - tailH)
+        let body = NSBezierPath(roundedRect: bodyRect, xRadius: corner, yRadius: corner)
+        let cx = b.midX
+        let tail = NSBezierPath()
+        tail.move(to: NSPoint(x: cx - tailW / 2, y: tailH))
+        tail.line(to: NSPoint(x: cx, y: 0))
+        tail.line(to: NSPoint(x: cx + tailW / 2, y: tailH))
+        tail.close()
+        NSColor(srgbRed: 0.08, green: 0.08, blue: 0.10, alpha: 0.94).setFill()
+        body.fill(); tail.fill()
+        NSColor(white: 1, alpha: 0.12).setStroke()
+        body.lineWidth = 1; body.stroke()
+        let textRect = NSRect(x: pad.width, y: tailH + pad.height,
+                              width: b.width - pad.width * 2,
+                              height: bodyRect.height - pad.height * 2)
+        attr().draw(with: textRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
+    }
+}
+
 // MARK: - Settings window (SwiftUI; writes config.json, which the overlay polls)
 
 final class SettingsWindowController: NSWindowController {
@@ -667,6 +730,9 @@ struct ImportTab: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel!
     private var petView: PetView!
+    private var bubblePanel: NSPanel!
+    private var bubbleView: BubbleView!
+    private var bubbleVisible = false
     private let reader = StateReader()
     private var anim: AnimManifest!
     private var frameCache: FrameCache!
@@ -702,6 +768,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.setFrameOrigin(NSPoint(x: v.maxX - size - 24, y: v.minY + 24))
         }
         panel.orderFrontRegardless()
+
+        // Speech-bubble panel: floats above the pet, click-through, tracks drags.
+        bubbleView = BubbleView(frame: NSRect(x: 0, y: 0, width: 220, height: 60))
+        bubblePanel = NSPanel(contentRect: bubbleView.frame,
+                              styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        bubblePanel.isOpaque = false
+        bubblePanel.backgroundColor = .clear
+        bubblePanel.hasShadow = false
+        bubblePanel.level = .floating
+        bubblePanel.ignoresMouseEvents = true
+        bubblePanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        bubblePanel.contentView = bubbleView
+        bubblePanel.alphaValue = 0
 
         loadPet(activePet())
         update()
@@ -751,6 +830,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             petView.show(state: r.state, attention: r.attention, frames: [], durations: [200])
         }
+        showBubble(r.message)
+    }
+
+    // Show/track/hide the speech bubble for the current message (nil => hide).
+    private func showBubble(_ text: String?) {
+        guard let text = text, !text.isEmpty else {
+            if bubbleVisible {
+                bubbleVisible = false
+                NSAnimationContext.runAnimationGroup({ ctx in
+                    ctx.duration = 0.25
+                    bubblePanel.animator().alphaValue = 0
+                }, completionHandler: { [weak self] in
+                    if self?.bubbleVisible == false { self?.bubblePanel.orderOut(nil) }
+                })
+            }
+            return
+        }
+        if bubbleView.text != text { bubbleView.text = text }
+        positionBubble()   // every tick, so the bubble follows the pet when dragged
+        if !bubbleVisible {
+            bubbleVisible = true
+            bubblePanel.orderFront(nil)
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.2
+                bubblePanel.animator().alphaValue = 1
+            })
+        }
+    }
+
+    private func positionBubble() {
+        let size = bubbleView.fittingSize()
+        let pet = panel.frame
+        var x = pet.midX - size.width / 2
+        let y = pet.maxY - loadedSize * 0.16   // overlap the pet's head so the tail meets it
+        if let screen = NSScreen.main {
+            let vf = screen.visibleFrame
+            x = min(max(x, vf.minX + 6), vf.maxX - size.width - 6)
+        }
+        bubblePanel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+        bubbleView.frame = NSRect(origin: .zero, size: size)
+        bubbleView.needsDisplay = true
     }
 }
 

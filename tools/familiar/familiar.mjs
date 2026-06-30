@@ -103,6 +103,7 @@ function readLog() {
 function fold(events) {
   let base = 'sleeping';   // before any session has started
   let flash = null;        // { state, until }  — `until` is a value, not a comparison
+  let message = null;      // { text, until }   — a transient speech bubble (own channel)
   let lastType = null;
   let seq = 0;
   for (const ev of events) {
@@ -113,8 +114,19 @@ function fold(events) {
       const [st, ttl] = FLASH[ev.type];
       flash = { state: st, until: ev.ts + ttl };
     }
+    // `message` is orthogonal to state: the pet keeps its animation and speaks.
+    // Text may arrive as a bare string or { text }. TTL scales with length so a
+    // longer line lingers — derived from ev.ts only, keeping the fold pure.
+    if (ev.type === 'message' || ev.type === 'say') {
+      const text = (typeof ev.data === 'string' ? ev.data : (ev.data && ev.data.text) || '').trim();
+      if (text) {
+        const words = text.split(/\s+/).length;
+        const ttl = Math.min(12000, Math.max(3500, words * 320));
+        message = { text: text.slice(0, 240), until: ev.ts + ttl };
+      }
+    }
   }
-  return { base, flash, seq, lastType };
+  return { base, flash, message, seq, lastType };
 }
 
 function writeState(s) {
@@ -144,6 +156,7 @@ function resolve(s, now = nowMs()) {
     attention: attentionFor(state),
     base: s.base || 'idle',
     flashing: !!(s.flash && now < s.flash.until),
+    message: (s.message && now < s.message.until) ? s.message.text : null,
   };
 }
 
@@ -216,7 +229,8 @@ function render(petId) {
   const name = (man && man.displayName) || petId;
   const att = r.attention === 'interrupt' ? `${AMBER}! needs you${RST}`
     : r.attention === 'glance' ? `${DIM}* fyi${RST}` : '';
-  return `${AMBER}${frames[idx]}${RST}\n${DIM}${name}${RST}  ${AMBER}${r.state}${RST} ${att}`;
+  const bubble = r.message ? `${DIM}💬 ${r.message}${RST}\n` : '';
+  return `${bubble}${AMBER}${frames[idx]}${RST}\n${DIM}${name}${RST}  ${AMBER}${r.state}${RST} ${att}`;
 }
 
 function watch(petId) {
@@ -290,16 +304,18 @@ function installClaudeCode(write) {
 
 function runDemo() {
   const seq = [
-    ['session.start', 0], ['prompt.submit', 1000], ['think', 700], ['tool.start', 900],
-    ['file.edit', 800], ['tool.end', 700], ['run.ok', 700], ['tool.start', 1000],
-    ['test.fail', 800], ['tool.start', 1300], ['run.ok', 800], ['review', 1000],
-    ['await.input', 1400], ['commit', 1600], ['turn.stop', 1000],
+    ['session.start', 0], ['prompt.submit', 1000], ['message', 600, 'On it — let me look.'],
+    ['think', 700], ['tool.start', 900], ['file.edit', 800], ['tool.end', 700],
+    ['run.ok', 700], ['message', 400, 'Build passed ✓'], ['tool.start', 1000],
+    ['test.fail', 800], ['message', 400, 'A test broke — fixing it.'], ['tool.start', 1300],
+    ['run.ok', 800], ['review', 1000], ['await.input', 1400],
+    ['message', 300, 'Ready for your review.'], ['commit', 1600], ['turn.stop', 1000],
   ];
   process.stdout.write('familiar demo: scripting a session. Run `familiar watch` in another pane to see Pip react.\n');
   let t = 0;
-  for (const [ev, gap] of seq) {
+  for (const [ev, gap, data] of seq) {
     t += gap;
-    setTimeout(() => { emit(ev); process.stdout.write(`emit ${ev}\n`); }, t);
+    setTimeout(() => { emit(ev, data); process.stdout.write(`emit ${ev}${data ? ` "${data}"` : ''}\n`); }, t);
   }
   setTimeout(() => process.exit(0), t + 800);
 }
@@ -542,6 +558,7 @@ function printHelp() {
 
 usage:
   familiar emit <event> [json]              append a fact to the log, then reduce
+  familiar emit message "text"              make the pet speak (a transient bubble)
   familiar state                            print the resolved current state (json)
   familiar watch                            animate the pet for the current state (Ctrl-C quits)
   familiar statusline                       print a one-line pet (for Claude Code statusLine)
@@ -554,7 +571,7 @@ usage:
 
 canonical events (semantic): session.start prompt.submit think tool.start tool.end
   file.edit run.ok run.fail test.pass test.fail review await.input await.approval
-  commit push error rate.limited turn.stop session.end
+  commit push error rate.limited turn.stop session.end  message (carries text)
 
 home: ${HOME}
 `);
