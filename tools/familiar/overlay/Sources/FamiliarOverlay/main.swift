@@ -458,8 +458,16 @@ final class PetView: NSView {
         card.frame = CGRect(x: (bounds.width - cw) / 2, y: (bounds.height - ch) / 2, width: cw, height: ch)
         faceLayer.frame = CGRect(x: 0, y: ch - 56, width: cw, height: 40)
         labelLayer.frame = CGRect(x: 0, y: 12, width: cw, height: 18)
-        let bs = bounds.width * 0.26                       // badge scales with the pet
-        badge.frame = CGRect(x: bounds.width * 0.62, y: bounds.height * 0.05, width: bs, height: bs)
+        positionBadge()
+    }
+
+    // The badge sits at the sprite's lower-right; in card mode it tucks onto the
+    // card's lower-right instead (the card is centered and smaller than bounds).
+    private func positionBadge() {
+        let bs = bounds.width * 0.26
+        var x = bounds.width * 0.62, y = bounds.height * 0.05
+        if !usingFrames { x = bounds.width * 0.64; y = bounds.height * 0.16 }
+        badge.frame = CGRect(x: x, y: y, width: bs, height: bs)
         badge.cornerRadius = bs / 2
         badgeIcon.frame = badge.bounds.insetBy(dx: bs * 0.26, dy: bs * 0.26)
     }
@@ -496,6 +504,7 @@ final class PetView: NSView {
             labelLayer.string = state.uppercased() + (attention == "interrupt" ? "  !" : "")
             card.borderColor = a.cgColor
             agentFrames = []
+            positionBadge()
             return
         }
         card.isHidden = true
@@ -504,6 +513,7 @@ final class PetView: NSView {
         agentDurs = durations.count == frames.count ? durations.map { max(40, $0) }
                                                      : Array(repeating: 200.0, count: frames.count)
         applyActive()
+        positionBadge()
     }
 
     // The frames the renderer plays for a grab (held) and a poke/drop-settle

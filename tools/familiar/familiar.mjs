@@ -80,11 +80,31 @@ const attentionFor = (s) => ATTENTION[s] || 'none';
 const nowMs = () => Date.now();
 const ensureHome = () => fs.mkdirSync(HOME, { recursive: true });
 
+// The log is append-only and the source of truth, but a long-lived session
+// would grow it without bound and make each reduce O(events). We keep it
+// replayable for recent history and compact the tail when it gets large: the
+// fold only needs the last sticky event + short-lived flash/message/tool, all
+// well within the retained window. A deliberate size-for-full-history trade.
+const LOG_MAX_BYTES = 1_000_000;   // compact once the log passes ~1 MB
+const LOG_KEEP = 1500;             // events retained after compaction
+
+function compactLogIfNeeded() {
+  let size = 0;
+  try { size = fs.statSync(LOG).size; } catch { return; }
+  if (size < LOG_MAX_BYTES) return;
+  const events = readLog();
+  if (events.length <= LOG_KEEP) return;
+  const tmp = LOG + '.tmp';
+  fs.writeFileSync(tmp, events.slice(-LOG_KEEP).map((e) => JSON.stringify(e)).join('\n') + '\n');
+  fs.renameSync(tmp, LOG);  // atomic on the same filesystem
+}
+
 function emit(type, data) {
   ensureHome();
   const rec = { ts: nowMs(), type };
   if (data !== undefined) rec.data = data;
   fs.appendFileSync(LOG, JSON.stringify(rec) + '\n');
+  compactLogIfNeeded();
   reduce();
 }
 
@@ -419,10 +439,41 @@ function toolCategory(name) {
   return 'tool';
 }
 
+// The agent's last spoken line, pulled from a Claude Code transcript (JSONL of
+// {type:'assistant', message:{content:[{type:'text',text}]}}). Read from the
+// end so we stop at the first assistant text we find.
+function lastAssistantLine(transcriptPath) {
+  if (!transcriptPath) return '';
+  let raw;
+  try { raw = fs.readFileSync(transcriptPath, 'utf8'); } catch { return ''; }
+  const lines = raw.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    let o; try { o = JSON.parse(line); } catch { continue; }
+    if (o.type === 'assistant' && o.message && Array.isArray(o.message.content)) {
+      const txt = o.message.content.filter((c) => c && c.type === 'text')
+        .map((c) => c.text).join(' ').trim();
+      if (txt) return txt;
+    }
+  }
+  return '';
+}
+
+// First sentence (or a clipped lead), so a long reply stays a glanceable bubble.
+function firstSentence(s) {
+  const m = String(s).replace(/\s+/g, ' ').trim();
+  const idx = m.search(/[.!?](\s|$)/);
+  return clip(idx >= 0 ? m.slice(0, idx + 1) : m, 140);
+}
+
 function deriveFromHook(canon, p) {
   switch (canon) {
     case 'prompt.submit': return { message: pick(SAY.ack) };
-    case 'turn.stop':     return { message: pick(SAY.done) };
+    case 'turn.stop': {
+      const line = lastAssistantLine(p && p.transcript_path);
+      return { message: line ? firstSentence(line) : pick(SAY.done) };
+    }
     case 'await.input': {
       const m = String((p && p.message) || '').trim();
       return { message: m ? clip(m, 120) : 'I need you on this 👀' };
