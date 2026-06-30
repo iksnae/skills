@@ -460,19 +460,30 @@ function lastAssistantLine(transcriptPath) {
   return '';
 }
 
-// First sentence (or a clipped lead), so a long reply stays a glanceable bubble.
-function firstSentence(s) {
-  const m = String(s).replace(/\s+/g, ' ').trim();
-  const idx = m.search(/[.!?](\s|$)/);
-  return clip(idx >= 0 ? m.slice(0, idx + 1) : m, 140);
+// Surface the agent's latest transcript text as speech. Deduped via a marker so
+// each distinct message is spoken once — the same text leads into several hooks
+// within a turn, but the pet should say it only the first time.
+const SAID_MARKER = path.join(HOME, '.last-said');
+function readSaid() { try { return fs.readFileSync(SAID_MARKER, 'utf8'); } catch { return ''; } }
+function writeSaid(s) { try { ensureHome(); fs.writeFileSync(SAID_MARKER, s); } catch { /* */ } }
+function surfaceLatest(p, maxLen) {
+  const line = lastAssistantLine(p && p.transcript_path);
+  if (!line || line === readSaid()) return null;   // nothing new since last spoken
+  writeSaid(line);
+  return clip(line.replace(/\s+/g, ' ').trim(), maxLen);
 }
 
 function deriveFromHook(canon, p) {
   switch (canon) {
     case 'prompt.submit': return { message: pick(SAY.ack) };
+    // Speak the agent's message leading into each tool — its running commentary.
+    case 'tool.start': {
+      const m = surfaceLatest(p, 160);
+      return m ? { message: m } : {};
+    }
     case 'turn.stop': {
-      const line = lastAssistantLine(p && p.transcript_path);
-      return { message: line ? firstSentence(line) : pick(SAY.done) };
+      const m = surfaceLatest(p, 200);   // the closing reply, if it's new
+      return { message: m || pick(SAY.done) };
     }
     case 'await.input': {
       const m = String((p && p.message) || '').trim();
