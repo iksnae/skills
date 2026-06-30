@@ -946,6 +946,7 @@ def _run_one(
     no_style: bool,
     cfg: dict | None,
     mermaid_path: Path | None = None,
+    reference_path: Path | None = None,
 ) -> dict:
     """Execute one image generation. Returns the receipt payload.
 
@@ -961,7 +962,16 @@ def _run_one(
             "generate_image: exactly one of `prompt` or `mermaid_path` must be set"
         )
 
-    mode = "prompt"
+    if reference_path is not None and mermaid_path is not None:
+        raise SystemExit(
+            "generate_image: --reference and --mermaid are mutually exclusive"
+        )
+    if reference_path is not None and not reference_path.exists():
+        print(f"generate_image: reference image not found: {reference_path}",
+              file=sys.stderr)
+        raise SystemExit(2)
+
+    mode = "reference" if reference_path is not None else "prompt"
     mermaid_meta: dict | None = None
     parsed: dict | None = None
     raw_prompt_for_receipt = prompt or ""
@@ -1019,6 +1029,12 @@ def _run_one(
         if mermaid_path is not None and ref_path is not None:
             _post_images_edit(
                 final_prompt, ref_path, out,
+                size=size, quality=quality,
+                model=model, api_key=api_key,
+            )
+        elif reference_path is not None:
+            _post_images_edit(
+                final_prompt, reference_path, out,
                 size=size, quality=quality,
                 model=model, api_key=api_key,
             )
@@ -1129,11 +1145,13 @@ def _run_batch(
             )
         out_raw = entry.get("out")
         out = Path(out_raw) if out_raw else None
+        ref_raw = entry.get("reference")
         size = entry.get("size") or default_size
         quality = entry.get("quality") or default_quality
         return _run_one(
             prompt=prompt, out=out,
             mermaid_path=(Path(mermaid_raw) if mermaid_raw else None),
+            reference_path=(Path(ref_raw) if ref_raw else None),
             size=size, quality=quality, model=model, api_key=api_key,
             no_style=no_style, cfg=cfg,
         )
@@ -1168,6 +1186,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="path to a .mmd file or a .md file containing a "
                         "```mermaid fence; renders a structurally accurate "
                         "diagram (mutually exclusive with --prompt)")
+    p.add_argument("--reference", type=Path,
+                   help="reference PNG for image-to-image: routes --prompt "
+                        "through images.edit conditioned on this image "
+                        "(keeps character identity / pose; mutually exclusive "
+                        "with --mermaid)")
     p.add_argument("--out", type=Path,
                    help=f"output PNG path (defaults to {DEFAULT_OUT_DIR}/<slug>.png)")
     p.add_argument("--size", default="1536x1024", choices=SIZE_CHOICES)
@@ -1244,6 +1267,7 @@ def main(argv: list[str] | None = None) -> int:
     result = _run_one(
         prompt=args.prompt,
         mermaid_path=args.mermaid,
+        reference_path=args.reference,
         out=args.out,
         size=args.size,
         quality=args.quality,
