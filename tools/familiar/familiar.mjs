@@ -371,10 +371,96 @@ function launchOverlay(args) {
   ensureHome();
   const logPath = path.join(HOME, 'overlay.log');
   const out = fs.openSync(logPath, 'a');
-  const env = { ...process.env, FAMILIAR_PET: pet, FAMILIAR_PETS_DIR: PETS_DIR, FAMILIAR_HOME: HOME };
+  const env = {
+    ...process.env, FAMILIAR_PET: pet, FAMILIAR_PETS_DIR: PETS_DIR,
+    FAMILIAR_HOME: HOME, FAMILIAR_CLI: path.join(__dirname, 'familiar.mjs'),
+  };
   const child = spawn(bin, [], { detached: true, stdio: ['ignore', out, out], env });
   child.unref();
   process.stdout.write(`familiar overlay: launched '${pet}' (pid ${child.pid})\n  log: ${logPath}\n`);
+}
+
+// --- hatch a new pet: base image -> per-state strips -> sheet -> pet.json ---
+const REPO_ROOT = path.join(__dirname, '..', '..');
+const GEN_IMG = path.join(REPO_ROOT, 'skills/image-generate/scripts/generate_image.py');
+const STRIP_PY = path.join(REPO_ROOT, 'skills/pet-hatch/scripts/strip.py');
+const PACK_PY = path.join(REPO_ROOT, 'skills/pet-hatch/scripts/pack.py');
+const USER_PETS_DIR = path.join(HOME, 'pets');
+
+// The proven stable base style (Codex's house style) — compact pixel-art reads
+// cleanly at small size and stays stable under the deterministic extraction.
+const PIXEL_STYLE =
+  'Codex-style digital pet sprite: pixel-art-adjacent low-resolution mascot, compact chibi ' +
+  'proportions, chunky whole-body silhouette, thick dark 1-2px outline, visible stepped/pixel ' +
+  'edges, limited palette, flat cel shading with at most one highlight and one shadow step, ' +
+  'simple readable face, tiny limbs, no fine detail that disappears when small. Avoid polished ' +
+  'illustration, painterly rendering, 3D, soft gradients, realistic texture, anti-aliased high-detail edges.';
+
+const PET_STATES = ['idle', 'thinking', 'working', 'reviewing', 'awaiting-human', 'milestone', 'failed', 'sleeping'];
+
+function slug(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'pet';
+}
+
+function hatchPet(rest) {
+  const o = { quality: 'high', references: [] };
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === '--name') o.name = rest[++i];
+    else if (a === '--prompt') o.prompt = rest[++i];
+    else if (a === '--reference') o.references.push(rest[++i]);
+    else if (a === '--quality') o.quality = rest[++i];
+    else if (a === '--pets-dir') o.petsDir = rest[++i];
+  }
+  const log = (step, status, extra) =>
+    process.stdout.write(JSON.stringify({ step, status, ...(extra || {}) }) + '\n');
+
+  if (!o.name || !o.prompt) {
+    process.stderr.write('usage: familiar hatch --name <name> --prompt <description> [--reference img]...\n');
+    process.exit(2);
+  }
+  if (!process.env.OPENAI_API_KEY) { log('error', 'fail', { message: 'OPENAI_API_KEY not set' }); process.exit(2); }
+
+  const id = slug(o.name);
+  const petsDir = o.petsDir || USER_PETS_DIR;
+  const bundle = path.join(petsDir, id);
+  const framesDir = path.join(bundle, 'frames');
+  fs.mkdirSync(framesDir, { recursive: true });
+  const basePng = path.join(bundle, 'base.png');
+
+  // 1. canonical base sprite (pixel-art; on green so the pipeline keys it)
+  log('base', 'start');
+  const basePrompt =
+    `Create a single clean reference sprite for a digital pet named ${o.name}. ` +
+    `Pet: ${o.prompt}. Style: ${PIXEL_STYLE} ` +
+    'Output one centered full-body pet sprite, seated and facing forward, on a perfectly flat ' +
+    'pure chroma green #00b140 background. Fully visible and readable as a tiny digital pet. ' +
+    'No scenery, text, borders, shadows, glows, or extra props. Do not use green or near-green on the pet itself.';
+  const baseCmd = [GEN_IMG, '--no-style', '--size', '1024x1024', '--quality', o.quality, '--out', basePng, '--prompt', basePrompt];
+  for (const r of o.references) { baseCmd.push('--reference', r); }
+  let r = spawnSync('python3', baseCmd, { encoding: 'utf8' });
+  if (r.status !== 0 || !fs.existsSync(basePng)) { log('base', 'fail', { err: (r.stderr || '').slice(-400) }); process.exit(1); }
+  log('base', 'ok', { path: basePng });
+
+  // 2. per-state strips + frames + anim.json (Codex extraction)
+  log('strips', 'start');
+  r = spawnSync('python3', [STRIP_PY, '--frames-dir', framesDir, '--base', basePng, '--workers', '3'],
+    { stdio: ['ignore', 'inherit', 'inherit'] });
+  if (r.status !== 0) { log('strips', 'fail'); process.exit(1); }
+  log('strips', 'ok');
+
+  // 3. pack into a sheet
+  log('pack', 'start');
+  r = spawnSync('python3', [PACK_PY, '--frames-dir', framesDir], { stdio: ['ignore', 'inherit', 'inherit'] });
+  if (r.status !== 0) { log('pack', 'fail'); process.exit(1); }
+  log('pack', 'ok');
+
+  // 4. pet.json
+  fs.writeFileSync(path.join(bundle, 'pet.json'), JSON.stringify({
+    id, displayName: o.name, description: o.prompt, states: PET_STATES,
+    renderers: { 'ascii-green-sprites': { dir: 'frames', manifest: 'anim.json', chromaKey: '#00b140', note: 'hatched via pet-hatch strip pipeline' } },
+  }, null, 2));
+  log('done', 'ok', { id, bundle });
 }
 
 function printHelp() {
@@ -388,6 +474,7 @@ usage:
   familiar install claude-code [--write]    wire lifecycle hooks (+statusline) into settings.json
   familiar pets                             list available pet bundles
   familiar overlay [pet] [--restart|--stop] launch the native desktop pet (auto-builds first run)
+  familiar hatch --name N --prompt "..."    hatch a new pet (base -> strips -> sheet); [--reference img]...
   familiar demo                             emit a scripted session (watch in another pane)
 
 canonical events (semantic): session.start prompt.submit think tool.start tool.end
@@ -426,6 +513,7 @@ try {
     }
     case 'pets': { process.stdout.write(listPets().join('\n') + '\n'); break; }
     case 'overlay': { launchOverlay(rest); break; }
+    case 'hatch': { hatchPet(rest); break; }
     case 'demo': { runDemo(); break; }
     case 'help': case undefined: { printHelp(); break; }
     default: { process.stderr.write(`unknown command: ${cmd}\n`); printHelp(); process.exit(2); }

@@ -17,6 +17,7 @@ import AppKit
 import Foundation
 import QuartzCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - State (read side)
 
@@ -124,18 +125,36 @@ func familiarHome() -> URL {
         ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".familiar")
 }
 
-func petsRoot() -> URL {
-    let env = ProcessInfo.processInfo.environment
-    return env["FAMILIAR_PETS_DIR"].map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
-        ?? familiarHome().appendingPathComponent("pets")
+// Pet bundles live in the repo pets dir (FAMILIAR_PETS_DIR, when launched via
+// the CLI) AND in ~/.familiar/pets (where `familiar hatch` writes user pets).
+func petsRoots() -> [URL] {
+    var roots: [URL] = []
+    if let p = ProcessInfo.processInfo.environment["FAMILIAR_PETS_DIR"] {
+        roots.append(URL(fileURLWithPath: (p as NSString).expandingTildeInPath))
+    }
+    roots.append(familiarHome().appendingPathComponent("pets"))
+    var seen = Set<String>()
+    return roots.filter { seen.insert($0.standardizedFileURL.path).inserted }
+}
+
+func petBundle(_ pet: String) -> URL? {
+    for root in petsRoots() {
+        let b = root.appendingPathComponent(pet)
+        if FileManager.default.fileExists(atPath: b.appendingPathComponent("pet.json").path) { return b }
+    }
+    return nil
 }
 
 func listPetIds() -> [String] {
-    let root = petsRoot()
-    guard let entries = try? FileManager.default.contentsOfDirectory(atPath: root.path) else { return [] }
-    return entries.filter {
-        FileManager.default.fileExists(atPath: root.appendingPathComponent($0).appendingPathComponent("pet.json").path)
-    }.sorted()
+    var ids = Set<String>()
+    for root in petsRoots() {
+        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: root.path) else { continue }
+        for e in entries where FileManager.default.fileExists(
+            atPath: root.appendingPathComponent(e).appendingPathComponent("pet.json").path) {
+            ids.insert(e)
+        }
+    }
+    return ids.sorted()
 }
 
 func readConfig() -> [String: Any] {
@@ -167,7 +186,7 @@ func activeSize() -> Double {
 
 // Resolve a pet bundle's sprite frames dir from its pet.json renderer `dir`.
 func petFramesDir(_ pet: String) -> URL? {
-    let bundle = petsRoot().appendingPathComponent(pet)
+    guard let bundle = petBundle(pet) else { return nil }
     guard let data = try? Data(contentsOf: bundle.appendingPathComponent("pet.json")),
           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let renderers = obj["renderers"] as? [String: Any] else { return nil }
@@ -425,6 +444,7 @@ struct SettingsView: View {
         TabView {
             GeneralTab().tabItem { Label("General", systemImage: "gearshape") }
             PetsTab().tabItem { Label("Pets", systemImage: "pawprint") }
+            CreatePetTab().tabItem { Label("Create", systemImage: "wand.and.stars") }
         }
         .frame(width: 440, height: 360)
     }
@@ -468,6 +488,114 @@ struct PetsTab: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+// Runs `familiar hatch` as a child process and streams its progress.
+final class Hatcher: ObservableObject {
+    @Published var running = false
+    @Published var lines: [String] = []
+    @Published var newPet: String?
+
+    func hatch(name: String, prompt: String, refs: [URL]) {
+        guard let cli = ProcessInfo.processInfo.environment["FAMILIAR_CLI"] else {
+            lines = ["error: FAMILIAR_CLI not set — relaunch the overlay via `familiar overlay`"]
+            return
+        }
+        running = true; newPet = nil
+        lines = ["Hatching “\(name)” — this takes a few minutes…"]
+        var args = ["node", cli, "hatch", "--name", name, "--prompt", prompt]
+        for r in refs { args.append(contentsOf: ["--reference", r.path]) }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        proc.arguments = args
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = pipe
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] h in
+            let d = h.availableData
+            guard !d.isEmpty, let s = String(data: d, encoding: .utf8) else { return }
+            DispatchQueue.main.async { self?.ingest(s) }
+        }
+        proc.terminationHandler = { [weak self] p in
+            DispatchQueue.main.async {
+                pipe.fileHandleForReading.readabilityHandler = nil
+                self?.running = false
+                self?.lines.append(p.terminationStatus == 0 ? "✓ done" : "✗ failed (exit \(p.terminationStatus))")
+            }
+        }
+        do { try proc.run() }
+        catch { running = false; lines.append("error: \(error.localizedDescription)") }
+    }
+
+    private func ingest(_ s: String) {
+        for line in s.split(whereSeparator: { $0 == "\n" }) {
+            if let data = line.data(using: .utf8),
+               let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let step = o["step"] as? String {
+                let status = o["status"] as? String ?? ""
+                if step == "done", let id = o["id"] as? String { newPet = id }
+                if let m = o["message"] as? String { lines.append("\(step): \(status) — \(m)") }
+                else { lines.append("\(step): \(status)") }
+            } else {
+                lines.append(String(line))
+            }
+        }
+    }
+}
+
+struct CreatePetTab: View {
+    @StateObject private var hatcher = Hatcher()
+    @State private var name = ""
+    @State private var prompt = ""
+    @State private var refs: [URL] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Pet name", text: $name)
+            Text("Describe your pet").font(.caption).foregroundStyle(.secondary)
+            TextEditor(text: $prompt)
+                .font(.callout)
+                .frame(height: 56)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(.gray.opacity(0.3)))
+            HStack {
+                Button("Add reference image…") { pickRefs() }.controlSize(.small)
+                if !refs.isEmpty {
+                    Text("\(refs.count) image(s)").font(.caption).foregroundStyle(.secondary)
+                    Button("clear") { refs = [] }.controlSize(.small)
+                }
+            }
+            HStack {
+                Button(hatcher.running ? "Hatching…" : "Hatch pet") {
+                    hatcher.hatch(name: name, prompt: prompt, refs: refs)
+                }
+                .disabled(hatcher.running || name.isEmpty || prompt.isEmpty)
+                if let id = hatcher.newPet {
+                    Button("Use “\(id)”") { writeConfig(["pet": id]) }
+                }
+            }
+            if !hatcher.lines.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(hatcher.lines.indices, id: \.self) { i in
+                            Text(hatcher.lines[i]).font(.caption2.monospaced())
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 96)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(.gray.opacity(0.2)))
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func pickRefs() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.image]
+        if panel.runModal() == .OK { refs = panel.urls }
     }
 }
 

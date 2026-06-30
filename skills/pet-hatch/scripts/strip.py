@@ -73,23 +73,23 @@ STATES: dict[str, dict] = {
         "Eyes stay closed; no travel."]},
 }
 
-PROMPT = """Create a single horizontal sprite strip of the SAME fox character — the small amber cartoon fox in the attached reference image — in the "{state}" state.
+PROMPT = """Create a single horizontal sprite strip of the SAME pet character shown in the attached reference image, in the "{state}" state.
 
-Use the FIRST attached image as the canonical fox: identity, pose, palette, and art style. Use the SECOND attached image as a LAYOUT GUIDE ONLY — it shows {frames} equal frame slots; follow its slot count, even spacing, centering, and safe padding. Do NOT copy the guide's boxes, lines, crosshairs, colors, or background into the output.
+Use the FIRST attached image as the canonical character: identity, palette, and art style. Use the SECOND attached image as a LAYOUT GUIDE ONLY — it shows {frames} equal frame slots; follow its slot count, even spacing, centering, and safe padding. Do NOT copy the guide's boxes, lines, crosshairs, colors, or background into the output.
 
 Identity & style lock:
-- Do not redesign the fox. Keep the exact same head shape, ears, snout, markings, amber/cream/brown palette, clean dark outline, flat cel shading, body proportions, and overall silhouette in every frame.
-- It is the same individual fox in every frame, never a related variant.
-- Flat cel-shaded cartoon style exactly like the reference: no pixel-art, no painterly rendering, no gradients, no texture, no new props.
+- Do not redesign the character. Keep the exact same head shape, ears, snout, markings, palette, outline weight, body proportions, and overall silhouette in every frame.
+- It is the same individual character in every frame, never a related variant.
+- Keep the EXACT same art style as the reference (line weight, shading, level of detail, palette) — do not switch styles, and add no new props.
 
-Output exactly {frames} animation frames arranged left-to-right in one single row, evenly spread across the full width, one complete fox centered in each slot, none crossing into a neighbor.
+Output exactly {frames} animation frames arranged left-to-right in one single row, evenly spread across the full width, one complete character centered in each slot, none crossing into a neighbor.
 
 Animation: {purpose}.
 {requirements}
 
 Background & cleanup:
 - Use a perfectly flat pure chroma green (#00b140) background across the whole image — the same green as the reference.
-- No shadows, reflections, glows, motion lines, speed lines, smears, dust, sparkles, or floating effects. No green or near-green anywhere on the fox itself.
+- No shadows, reflections, glows, motion lines, speed lines, smears, dust, sparkles, or floating effects. No green or near-green anywhere on the character itself.
 - No visible grid, borders, labels, numbers, text, or scenery.
 - Keep each frame self-contained with safe padding; never clip any body part at a slot edge.
 - Clear readable poses, no motion blur. Preserve the same silhouette, face, proportions, and palette across every frame."""
@@ -208,7 +208,7 @@ def write_frames(state: str, fdir: Path, strip_img: Image.Image, n: int) -> None
 
 
 def run_state(state: str, fdir: Path, image_script: Path, quality: str,
-              force: bool, reslice: bool) -> bool:
+              force: bool, reslice: bool, base: Path | None = None) -> bool:
     rec = STATES[state]
     n = rec["frames"]
     raw_strip = fdir / f"{state}.strip.png"
@@ -221,9 +221,11 @@ def run_state(state: str, fdir: Path, image_script: Path, quality: str,
         print(f"strip: {state} resliced — {n} frames")
         return True
 
-    pose_ref = fdir / f"{state}.png"
+    # --base: one canonical image anchors identity+style for EVERY state (the
+    # Codex new-pet flow); else each state uses its own <state>.png pose keyframe.
+    pose_ref = base if base is not None else fdir / f"{state}.png"
     if not pose_ref.exists():
-        print(f"strip: skip {state} — no pose keyframe {pose_ref}", file=sys.stderr)
+        print(f"strip: skip {state} — no reference {pose_ref}", file=sys.stderr)
         return False
     if raw_strip.exists() and not force:
         print(f"strip: {state} already generated; reslicing (use --force to regenerate)")
@@ -268,9 +270,18 @@ def merge_anim(fdir: Path, states: list[str]) -> None:
     anim.setdefault("states", {})
     for st in states:
         rec = STATES[st]
+        n = rec["frames"]
+        ms = rec["frameMs"]
+        # Hold the rest frames at the ends longer than the motion in between, so
+        # loops settle instead of cycling at a constant (wiggly) rate.
+        durs = [ms] * n
+        if n > 1:
+            durs[0] = round(ms * 1.8)
+            durs[-1] = round(ms * 2.0)
         anim["states"][st] = {
-            "frames": [f"{st}.f{i}.png" for i in range(rec["frames"])],
-            "frameMs": rec["frameMs"],
+            "frames": [f"{st}.f{i}.png" for i in range(n)],
+            "frameMs": ms,
+            "durations": durs,
             "mode": "loop",
         }
     apath.write_text(json.dumps(anim, indent=2))
@@ -281,6 +292,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Generate per-state sprite strips and slice them into frames.")
     ap.add_argument("--frames-dir", required=True, type=Path)
     ap.add_argument("--image-script", type=Path, default=None)
+    ap.add_argument("--base", type=Path, default=None,
+                    help="one canonical reference image used for EVERY state (new-pet flow); "
+                         "without it each state uses its own <state>.png keyframe")
     ap.add_argument("--states", default="all", help="comma list, or 'all'")
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--quality", default="high")
@@ -304,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.anim_only:
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
             list(ex.map(lambda st: run_state(st, fdir, script, args.quality,
-                                             args.force, args.reslice), want))
+                                             args.force, args.reslice, args.base), want))
 
     merge_anim(fdir, want)
     return 0
