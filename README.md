@@ -74,6 +74,12 @@ Every skill has a full page covering usage, behavior, outputs — and a **real d
 | [remotion-render](docs/remotion-render.md) | Render Remotion compositions with receipts; bundles the spec linter. |
 | [remotion-with-image](docs/remotion-with-image.md) | Composite flow: generated stills inside Remotion videos. |
 
+### Ambient & presence
+
+| Skill | What it does |
+|---|---|
+| [familiar](docs/familiar.md) | A cross-harness ambient desktop pet that reacts to your agent's activity — semantic events → a pure reducer → renderer-agnostic pets (macOS overlay or terminal). |
+
 ## The demo: nightjar
 
 ![nightjar](docs/assets/demo-nightjar.png)
