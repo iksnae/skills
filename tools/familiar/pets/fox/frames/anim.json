@@ -1,0 +1,138 @@
+{
+  "frameMs": 180,
+  "states": {
+    "idle": {
+      "frames": [
+        "idle.0",
+        "idle.1",
+        "idle.2",
+        "idle.3",
+        "idle.4",
+        "idle.5"
+      ],
+      "frameMs": 180,
+      "mode": "loop"
+    },
+    "thinking": {
+      "frames": [
+        "thinking.0",
+        "thinking.1",
+        "thinking.2",
+        "thinking.3",
+        "thinking.4",
+        "thinking.5"
+      ],
+      "frameMs": 200,
+      "mode": "loop"
+    },
+    "working": {
+      "frames": [
+        "working.0",
+        "working.1",
+        "working.2",
+        "working.3",
+        "working.4",
+        "working.5"
+      ],
+      "frameMs": 120,
+      "mode": "loop"
+    },
+    "reviewing": {
+      "frames": [
+        "reviewing.0",
+        "reviewing.1",
+        "reviewing.2",
+        "reviewing.3",
+        "reviewing.4",
+        "reviewing.5"
+      ],
+      "frameMs": 180,
+      "mode": "loop"
+    },
+    "awaiting-human": {
+      "frames": [
+        "awaiting-human.0",
+        "awaiting-human.1",
+        "awaiting-human.2",
+        "awaiting-human.3",
+        "awaiting-human.4",
+        "awaiting-human.5"
+      ],
+      "frameMs": 170,
+      "mode": "loop"
+    },
+    "succeeded": {
+      "frames": [
+        "succeeded.0",
+        "succeeded.1",
+        "succeeded.2",
+        "succeeded.3"
+      ],
+      "frameMs": 140,
+      "mode": "loop"
+    },
+    "milestone": {
+      "frames": [
+        "milestone.0",
+        "milestone.1",
+        "milestone.2",
+        "milestone.3",
+        "milestone.4"
+      ],
+      "frameMs": 150,
+      "mode": "loop"
+    },
+    "failed": {
+      "frames": [
+        "failed.0",
+        "failed.1",
+        "failed.2",
+        "failed.3",
+        "failed.4",
+        "failed.5",
+        "failed.6",
+        "failed.7"
+      ],
+      "frameMs": 150,
+      "mode": "loop"
+    },
+    "errored": {
+      "frames": [
+        "errored.0",
+        "errored.1",
+        "errored.2",
+        "errored.3",
+        "errored.4",
+        "errored.5",
+        "errored.6",
+        "errored.7"
+      ],
+      "frameMs": 150,
+      "mode": "loop"
+    },
+    "rate-limited": {
+      "frames": [
+        "rate-limited.0",
+        "rate-limited.1",
+        "rate-limited.2",
+        "rate-limited.3",
+        "rate-limited.4",
+        "rate-limited.5"
+      ],
+      "frameMs": 170,
+      "mode": "loop"
+    },
+    "sleeping": {
+      "frames": [
+        "sleeping.0",
+        "sleeping.1",
+        "sleeping.2",
+        "sleeping.3",
+        "sleeping.4",
+        "sleeping.5"
+      ],
+      "frameMs": 360,
+      "mode": "loop"
+    }
+  }
+}

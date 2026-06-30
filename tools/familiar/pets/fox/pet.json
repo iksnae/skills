@@ -1,26 +1,26 @@
 {
   "id": "fox",
   "displayName": "Fox",
-  "description": "A small amber fox familiar — the default animated pet.",
+  "description": "A cheerful pixel-art fox \u2014 hatched via Codex's proven pipeline, driven by familiar's semantic states.",
   "states": [
     "idle",
     "thinking",
     "working",
-    "awaiting-human",
     "reviewing",
+    "awaiting-human",
     "succeeded",
+    "milestone",
     "failed",
     "errored",
     "rate-limited",
-    "milestone",
     "sleeping"
   ],
   "renderers": {
     "ascii-green-sprites": {
-      "dir": "frames_green",
+      "dir": "frames",
       "manifest": "anim.json",
-      "chromaKey": "#00b140",
-      "note": "per-state looping frames on a green screen; renderer keys it transparent"
+      "chromaKey": "#0000FF",
+      "note": "Codex-hatched atlas; frames already transparent (key is a no-op)"
     }
   }
 }
