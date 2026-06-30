@@ -613,14 +613,21 @@ def _render_reference_image(source: str, cfg_mermaid: dict, tmp_dir: Path
     return None, None
 
 
-def _post_images_edit(prompt: str, ref_png_path: Path, out: Path, *,
+def _post_images_edit(prompt: str, ref_png_paths, out: Path, *,
                        size: str, quality: str, model: str,
                        api_key: str, timeout: int = 240) -> Path:
-    """Multipart POST to the images.edit endpoint with the reference PNG.
+    """Multipart POST to the images.edit endpoint with one or more reference
+    PNGs. A single image is sent as the `image` field; multiple images (e.g. an
+    identity/pose reference plus a layout guide) are sent as repeated `image[]`
+    fields, the gpt-image multi-image edit form.
 
     Mirrors `generate()`'s 429-retry contract: one retry after sleeping
     for `x-ratelimit-reset-requests` seconds + 1.
     """
+    if isinstance(ref_png_paths, (str, Path)):
+        ref_png_paths = [Path(ref_png_paths)]
+    ref_png_paths = [Path(p) for p in ref_png_paths]
+    field = "image" if len(ref_png_paths) == 1 else "image[]"
     attempts = 0
     while True:
         attempts += 1
@@ -642,14 +649,16 @@ def _post_images_edit(prompt: str, ref_png_path: Path, out: Path, *,
             _field("quality", quality)
         _field("n", "1")
 
-        png_bytes = ref_png_path.read_bytes()
-        body_parts.append(
-            f"--{boundary}{nl}"
-            f'Content-Disposition: form-data; name="image"; filename="ref.png"{nl}'
-            f"Content-Type: image/png{nl}{nl}".encode("utf-8")
-        )
-        body_parts.append(png_bytes)
-        body_parts.append(f"{nl}--{boundary}--{nl}".encode("utf-8"))
+        for i, rp in enumerate(ref_png_paths):
+            png_bytes = rp.read_bytes()
+            body_parts.append(
+                f"--{boundary}{nl}"
+                f'Content-Disposition: form-data; name="{field}"; filename="ref{i}.png"{nl}'
+                f"Content-Type: image/png{nl}{nl}".encode("utf-8")
+            )
+            body_parts.append(png_bytes)
+            body_parts.append(nl.encode("utf-8"))
+        body_parts.append(f"--{boundary}--{nl}".encode("utf-8"))
         body = b"".join(body_parts)
 
         req = urllib.request.Request(
@@ -946,7 +955,7 @@ def _run_one(
     no_style: bool,
     cfg: dict | None,
     mermaid_path: Path | None = None,
-    reference_path: Path | None = None,
+    reference_paths: list[Path] | None = None,
 ) -> dict:
     """Execute one image generation. Returns the receipt payload.
 
@@ -962,16 +971,17 @@ def _run_one(
             "generate_image: exactly one of `prompt` or `mermaid_path` must be set"
         )
 
-    if reference_path is not None and mermaid_path is not None:
+    if reference_paths and mermaid_path is not None:
         raise SystemExit(
             "generate_image: --reference and --mermaid are mutually exclusive"
         )
-    if reference_path is not None and not reference_path.exists():
-        print(f"generate_image: reference image not found: {reference_path}",
-              file=sys.stderr)
-        raise SystemExit(2)
+    for rp in (reference_paths or []):
+        if not rp.exists():
+            print(f"generate_image: reference image not found: {rp}",
+                  file=sys.stderr)
+            raise SystemExit(2)
 
-    mode = "reference" if reference_path is not None else "prompt"
+    mode = "reference" if reference_paths else "prompt"
     mermaid_meta: dict | None = None
     parsed: dict | None = None
     raw_prompt_for_receipt = prompt or ""
@@ -1028,13 +1038,13 @@ def _run_one(
     try:
         if mermaid_path is not None and ref_path is not None:
             _post_images_edit(
-                final_prompt, ref_path, out,
+                final_prompt, [ref_path], out,
                 size=size, quality=quality,
                 model=model, api_key=api_key,
             )
-        elif reference_path is not None:
+        elif reference_paths:
             _post_images_edit(
-                final_prompt, reference_path, out,
+                final_prompt, reference_paths, out,
                 size=size, quality=quality,
                 model=model, api_key=api_key,
             )
@@ -1146,12 +1156,18 @@ def _run_batch(
         out_raw = entry.get("out")
         out = Path(out_raw) if out_raw else None
         ref_raw = entry.get("reference")
+        if isinstance(ref_raw, str):
+            ref_list = [Path(ref_raw)]
+        elif ref_raw:
+            ref_list = [Path(r) for r in ref_raw]
+        else:
+            ref_list = None
         size = entry.get("size") or default_size
         quality = entry.get("quality") or default_quality
         return _run_one(
             prompt=prompt, out=out,
             mermaid_path=(Path(mermaid_raw) if mermaid_raw else None),
-            reference_path=(Path(ref_raw) if ref_raw else None),
+            reference_paths=ref_list,
             size=size, quality=quality, model=model, api_key=api_key,
             no_style=no_style, cfg=cfg,
         )
@@ -1186,11 +1202,12 @@ def main(argv: list[str] | None = None) -> int:
                    help="path to a .mmd file or a .md file containing a "
                         "```mermaid fence; renders a structurally accurate "
                         "diagram (mutually exclusive with --prompt)")
-    p.add_argument("--reference", type=Path,
+    p.add_argument("--reference", type=Path, action="append",
                    help="reference PNG for image-to-image: routes --prompt "
                         "through images.edit conditioned on this image "
                         "(keeps character identity / pose; mutually exclusive "
-                        "with --mermaid)")
+                        "with --mermaid). Repeatable — pass multiple to send "
+                        "several inputs (e.g. a pose reference + a layout guide).")
     p.add_argument("--out", type=Path,
                    help=f"output PNG path (defaults to {DEFAULT_OUT_DIR}/<slug>.png)")
     p.add_argument("--size", default="1536x1024", choices=SIZE_CHOICES)
@@ -1267,7 +1284,7 @@ def main(argv: list[str] | None = None) -> int:
     result = _run_one(
         prompt=args.prompt,
         mermaid_path=args.mermaid,
-        reference_path=args.reference,
+        reference_paths=args.reference,
         out=args.out,
         size=args.size,
         quality=args.quality,
