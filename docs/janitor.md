@@ -2,6 +2,8 @@
 
 > Clean the mess without making a bigger one — turn rough, tangled, or half-finished work into something smaller, clearer, and safer, one low-risk patch at a time.
 
+![janitor cleanup flow](assets/janitor.png)
+
 ## What it does
 
 `janitor` improves existing code, tests, docs, and workflows through disciplined, reversible steps — never a grandstanding rewrite. Its guiding question is "what is the smallest cleanup that makes this safer to work on tomorrow?" It prefers boring fixes, adds tests *before* risky changes, removes complexity rather than adding abstractions, and refuses to combine behavior changes with cleanup.

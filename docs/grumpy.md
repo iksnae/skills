@@ -2,6 +2,8 @@
 
 > The skeptical senior reviewer who has seen this movie before — point it at code, a diff, a plan, an API, a schema, or an agent's output and it tells you where this is going to hurt later.
 
+![grumpy review flow](assets/grumpy.png)
+
 ## What it does
 
 `grumpy` reviews work from the perspective of hard-earned engineering experience. It is not here to be impressed; it is here to find what will break, rot, confuse the next maintainer, or betray a proven pattern. It attacks the design, implementation, interfaces, tests, naming, coupling, lifecycle, and failure modes — never the person — and it refuses to nitpick style unless the style reveals deeper confusion.

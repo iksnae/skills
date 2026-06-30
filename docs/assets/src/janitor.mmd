@@ -1,0 +1,10 @@
+flowchart TD
+  mess["messy code - tests - docs"] --> goal["state the goal<br/>+ what must not change"]
+  goal --> pin["pin behavior<br/>characterization test first"]
+  pin --> sweep["smallest safe patch<br/>rename - extract - dedup"]
+  sweep --> validate["build - vet - test green"]
+  validate --> defer["defer behavior changes<br/>do not touch yet"]
+  defer --> done["next change less scary"]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class sweep accent
+  linkStyle 2 stroke:#FFCC00

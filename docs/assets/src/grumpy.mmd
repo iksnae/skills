@@ -1,0 +1,11 @@
+flowchart TD
+  work["code - plan - API - diff"] --> read["read for risk<br/>not for style"]
+  read --> verdict["blunt verdict<br/>the central risk"]
+  verdict --> inventory["smell inventory<br/>blocker - major - minor - nit"]
+  inventory --> patterns["pattern violations<br/>+ missing failure cases"]
+  patterns --> tests["named test gaps"]
+  tests --> fix["smallest fix first<br/>then cleaner shape"]
+  fix --> hand["hand cleanup to janitor"]
+  classDef accent stroke:#FFCC00,color:#FFCC00;
+  class inventory accent
+  linkStyle 6 stroke:#FFCC00
