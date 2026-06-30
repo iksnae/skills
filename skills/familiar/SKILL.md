@@ -82,7 +82,16 @@ the pet directly: `familiar emit working`, `familiar emit message "…"`.
 
 Pet bundles are swappable renderer assets (a sprite sheet + `anim.json`) plus a
 manifest. `familiar pets` lists them; `familiar hatch --name N --prompt "…"`
-generates a new one; `familiar import-codex --path …` imports a Codex atlas.
+generates a new one; `familiar import-codex --path …` imports a local Codex atlas.
 Pet authoring shells out to the `pet-hatch` + `image-generate` skills and an
 image API key (both present in this repo). The default pet always works without
 them; sprite pets are generated per-user.
+
+A community gallery of thousands of Codex pets lives at
+[codex-pets.net](https://codex-pets.net) (source: `portons/codex-pet-share`).
+Its API serves each pet as the same atlas bundle the importer ingests, so it is
+just a remote source: `familiar browse --search … --kind … --sort …` to discover,
+`familiar import-codex --id <slug>` for one, `familiar import-codex --top N` to
+bulk-import. Imports keep creator attribution; `--host`/`FAMILIAR_LIBRARY`/
+`config.libraryUrl` point at any self-hosted fork. The overlay's **Library**
+Preferences tab does this with a search box and one-click import.

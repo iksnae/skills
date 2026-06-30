@@ -22,6 +22,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 
@@ -771,29 +772,143 @@ function hatchPet(rest) {
   log('done', 'ok', { id, bundle });
 }
 
-// --- import a Codex pet atlas; optionally generate the states it lacks ---
-function importCodex(rest) {
-  const o = { quality: 'high', generateMissing: false };
+// --- Codex Pet Share library (codex-pets.net + any self-hosted fork) ---------
+// codex-pets.net is a community gallery (source: portons/codex-pet-share) whose
+// HTTP API serves each pet as a `<id>.codex-pet.zip` = pet.json + spritesheet —
+// EXACTLY the Codex atlas bundle `import-codex` already ingests. So the library
+// is just a remote SOURCE for the existing importer, never a new contract: we
+// slice their atlas into our frames the same as a local Codex import. The host
+// is configurable (FAMILIAR_LIBRARY / config.libraryUrl) so any fork works.
+const LIBRARY_DEFAULT = 'https://codex-pets.net';
+const PET_SORTS = ['new', 'popular', 'views', 'discussed', 'random'];
+const PET_KINDS = ['object', 'animal', 'person', 'creature'];
+
+function libraryHost(explicit) {
+  const h = explicit || process.env.FAMILIAR_LIBRARY || readConfig().libraryUrl || LIBRARY_DEFAULT;
+  return String(h).replace(/\/+$/, '');
+}
+
+// accept a slug, a full URL, or a .../<slug> path — return the bare slug
+function librarySlug(s) {
+  const tail = String(s).split(/[?#]/)[0].replace(/\/+$/, '').split('/').pop() || '';
+  return tail.replace(/\.codex-pet\.zip$/i, '');
+}
+
+async function libraryList(host, q = {}) {
+  const u = new URL(host + '/api/pets');
+  if (q.q) u.searchParams.set('q', q.q);
+  for (const t of q.tags || []) u.searchParams.append('tag', t);
+  if (q.kind) u.searchParams.set('kind', q.kind);
+  if (q.sort) u.searchParams.set('sort', q.sort);
+  if (q.content) u.searchParams.set('content', q.content);
+  u.searchParams.set('page', String(q.page || 1));
+  u.searchParams.set('pageSize', String(Math.min(q.pageSize || 30, 60)));
+  const res = await fetch(u, { headers: { 'user-agent': 'familiar-cli' } });
+  if (!res.ok) throw new Error(`library list HTTP ${res.status} ${res.statusText} @ ${u}`);
+  return res.json();
+}
+
+async function libraryDownload(host, id) {
+  const u = `${host}/api/pets/${encodeURIComponent(id)}/download`;
+  const res = await fetch(u, { headers: { 'user-agent': 'familiar-cli' } });
+  if (!res.ok) throw new Error(`download HTTP ${res.status} for "${id}" @ ${u}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+// single-pet metadata (owner, display name, description) — for attribution
+async function libraryGet(host, id) {
+  try {
+    const res = await fetch(`${host}/api/pets/${encodeURIComponent(id)}`, { headers: { 'user-agent': 'familiar-cli' } });
+    if (!res.ok) return null;
+    return (await res.json()).pet || null;
+  } catch { return null; }
+}
+
+// Minimal ZIP reader (stored + deflate), central-directory based — keeps the
+// CLI zero-dependency and cross-platform (no reliance on an `unzip` binary).
+function unzip(buf) {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0; i--) { if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; } }
+  if (eocd < 0) throw new Error('not a zip archive (no end-of-central-directory record)');
+  const count = buf.readUInt16LE(eocd + 10);
+  let off = buf.readUInt32LE(eocd + 16);
+  const out = {};
+  for (let n = 0; n < count; n++) {
+    if (buf.readUInt32LE(off) !== 0x02014b50) throw new Error('corrupt zip (bad central-directory entry)');
+    const method = buf.readUInt16LE(off + 10);
+    const compSize = buf.readUInt32LE(off + 20);
+    const nameLen = buf.readUInt16LE(off + 28);
+    const extraLen = buf.readUInt16LE(off + 30);
+    const commentLen = buf.readUInt16LE(off + 32);
+    const localOff = buf.readUInt32LE(off + 42);
+    const name = buf.toString('utf8', off + 46, off + 46 + nameLen);
+    const lhNameLen = buf.readUInt16LE(localOff + 26);
+    const lhExtraLen = buf.readUInt16LE(localOff + 28);
+    const dataStart = localOff + 30 + lhNameLen + lhExtraLen;
+    const raw = buf.subarray(dataStart, dataStart + compSize);
+    out[name] = method === 0 ? Buffer.from(raw) : zlib.inflateRawSync(raw);
+    off += 46 + nameLen + extraLen + commentLen;
+  }
+  return out;
+}
+
+// Download + unzip a library pet into a temp dir shaped like a local Codex pet
+// (spritesheet.* + pet.json), so the existing local importer can consume it.
+async function fetchLibraryPet(host, id) {
+  const files = unzip(await libraryDownload(host, id));
+  const sheetName = Object.keys(files).find((f) => /spritesheet\.(webp|png)$/i.test(f));
+  if (!sheetName) throw new Error(`library bundle for "${id}" has no spritesheet`);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'familiar-lib-'));
+  fs.writeFileSync(path.join(dir, path.basename(sheetName)), files[sheetName]);
+  if (files['pet.json']) fs.writeFileSync(path.join(dir, 'pet.json'), files['pet.json']);
+  return dir;
+}
+
+// --- browse the library (discovery) -----------------------------------------
+async function browse(rest) {
+  const o = { tags: [], page: 1, pageSize: 30 };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '--path') o.srcPath = rest[++i];
-    else if (a === '--name') o.name = rest[++i];
-    else if (a === '--generate-missing') o.generateMissing = true;
-    else if (a === '--quality') o.quality = rest[++i];
-    else if (a === '--pets-dir') o.petsDir = rest[++i];
+    if (a === '--search' || a === '-q') o.q = rest[++i];
+    else if (a === '--tag') o.tags.push(rest[++i]);
+    else if (a === '--kind') o.kind = rest[++i];
+    else if (a === '--sort') o.sort = rest[++i];
+    else if (a === '--page') o.page = Number(rest[++i]) || 1;
+    else if (a === '--page-size') o.pageSize = Number(rest[++i]) || 30;
+    else if (a === '--all' || a === '--nsfw') o.content = 'all';
+    else if (a === '--host') o.host = rest[++i];
+    else if (a === '--json') o.json = true;
   }
-  const log = (step, status, extra) =>
-    process.stdout.write(JSON.stringify({ step, status, ...(extra || {}) }) + '\n');
+  if (o.sort && !PET_SORTS.includes(o.sort)) { process.stderr.write(`--sort must be one of: ${PET_SORTS.join(', ')}\n`); process.exit(2); }
+  if (o.kind && !PET_KINDS.includes(o.kind)) { process.stderr.write(`--kind must be one of: ${PET_KINDS.join(', ')}\n`); process.exit(2); }
+  const host = libraryHost(o.host);
+  const data = await libraryList(host, o);
+  if (o.json) { process.stdout.write(JSON.stringify(data, null, 2) + '\n'); return; }
 
-  if (!o.srcPath) {
-    process.stderr.write('usage: familiar import-codex --path <codex pet dir or sheet> [--name N] [--generate-missing]\n');
-    process.exit(2);
-  }
+  const pets = data.pets || [];
+  const clip = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+  const rows = pets.map((p) => [
+    clip(p.id, 22).padEnd(22),
+    clip(p.displayName, 22).padEnd(22),
+    clip(p.kind, 8).padEnd(8),
+    String('♥' + (p.likeCount || 0)).padStart(6),
+    String('👁' + (p.viewCount || 0)).padStart(7),
+    clip((p.tags || []).join(','), 28),
+  ].join('  '));
+  process.stdout.write(`${host} · ${data.total} pets · page ${data.page}/${data.totalPages}\n`);
+  process.stdout.write('id'.padEnd(22) + '  ' + 'name'.padEnd(22) + '  ' + 'kind'.padEnd(8) + '  ' + 'likes'.padStart(6) + '  ' + 'views'.padStart(7) + '  tags\n');
+  process.stdout.write(rows.join('\n') + (rows.length ? '\n' : 'no matches\n'));
+  if (data.page < data.totalPages) process.stdout.write(`\n… --page ${data.page + 1} for more\n`);
+  process.stdout.write(`\nimport one:  familiar import-codex --id <id>\n`);
+}
+
+// --- core local import: slice a Codex atlas dir/sheet into our frames --------
+function importLocalPet(o, log) {
   if (!fs.existsSync(o.srcPath)) { log('error', 'fail', { message: `not found: ${o.srcPath}` }); process.exit(2); }
   if (!fs.existsSync(IMPORT_CODEX) || !authoringScriptsAvailable()) { log('error', 'fail', { message: 'codex import needs the skills repo (pet-hatch scripts) — run from a clone of iksnae/skills' }); process.exit(2); }
 
   // Resolve the spritesheet + name/description from a pet dir or a direct sheet.
-  let sheet = o.srcPath, name = o.name, desc = 'Imported Codex pet.';
+  let sheet = o.srcPath, name = o.name, desc = o.desc || 'Imported Codex pet.';
   if (fs.statSync(o.srcPath).isDirectory()) {
     for (const f of ['spritesheet.webp', 'spritesheet.png']) {
       if (fs.existsSync(path.join(o.srcPath, f))) { sheet = path.join(o.srcPath, f); break; }
@@ -804,14 +919,16 @@ function importCodex(rest) {
     }
   }
   if (!name) name = path.basename(o.srcPath).replace(/\.(webp|png)$/i, '');
-  const id = slug(name);
+  // Prefer the library's canonical slug id (clean, collision-free) over slugging
+  // a display name — many library names are non-ASCII and would collapse to "pet".
+  const id = o.id || slug(name);
   const bundle = path.join(o.petsDir || USER_PETS_DIR, id);
   const framesDir = path.join(bundle, 'frames');
   fs.mkdirSync(framesDir, { recursive: true });
   const basePng = path.join(bundle, 'base.png');
 
   // 1. slice + map the Codex rows into our frames + anim.json
-  log('import', 'start');
+  log('import', 'start', { name });
   let r = spawnSync('python3', [IMPORT_CODEX, '--sheet', sheet, '--frames-dir', framesDir, '--base-out', basePng], { encoding: 'utf8' });
   if (r.status !== 0) { log('import', 'fail', { err: (r.stderr || '').slice(-400) }); process.exit(1); }
   let info = {};
@@ -836,13 +953,86 @@ function importCodex(rest) {
   if (r.status !== 0) { log('pack', 'fail'); process.exit(1); }
   log('pack', 'ok');
 
-  // 4. pet.json
+  // 4. pet.json (preserve creator attribution when imported from the library)
   fs.writeFileSync(path.join(bundle, 'pet.json'), JSON.stringify({
     id, displayName: name, description: desc, states: info.states || PET_STATES,
+    ...(o.source ? { source: o.source, ...(o.author ? { author: o.author } : {}) } : {}),
     renderers: { 'ascii-green-sprites': { dir: 'frames', manifest: 'anim.json', chromaKey: '#00b140',
-      note: 'imported from a Codex atlas' + (o.generateMissing ? ' + generated missing states' : '') } },
+      note: (o.source ? `imported from ${o.source}` : 'imported from a Codex atlas') + (o.generateMissing ? ' + generated missing states' : '') } },
   }, null, 2));
   log('done', 'ok', { id, bundle });
+  return id;
+}
+
+// --- import a Codex pet atlas — from a local path OR the online library ------
+async function importCodex(rest) {
+  const o = { quality: 'high', generateMissing: false, ids: [] };
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === '--path') o.srcPath = rest[++i];
+    else if (a === '--id' || a === '--url') o.ids.push(librarySlug(rest[++i]));
+    else if (a === '--top') o.top = Number(rest[++i]) || 0;
+    else if (a === '--search' || a === '-q') o.q = rest[++i];
+    else if (a === '--tag') (o.tags || (o.tags = [])).push(rest[++i]);
+    else if (a === '--kind') o.kind = rest[++i];
+    else if (a === '--sort') o.sort = rest[++i];
+    else if (a === '--host') o.host = rest[++i];
+    else if (a === '--name') o.name = rest[++i];
+    else if (a === '--generate-missing') o.generateMissing = true;
+    else if (a === '--quality') o.quality = rest[++i];
+    else if (a === '--pets-dir') o.petsDir = rest[++i];
+  }
+  const log = (step, status, extra) =>
+    process.stdout.write(JSON.stringify({ step, status, ...(extra || {}) }) + '\n');
+
+  const remote = o.ids.length || o.top;
+  if (!o.srcPath && !remote) {
+    process.stderr.write('usage:\n'
+      + '  familiar import-codex --path <dir|sheet> [--name N] [--generate-missing]\n'
+      + '  familiar import-codex --id <slug|url> [--id ...]      from the online library\n'
+      + '  familiar import-codex --top N [--sort popular] [--search Q] [--tag T] [--kind K]\n');
+    process.exit(2);
+  }
+
+  // Local path: original behavior.
+  if (!remote) { importLocalPet(o, log); return; }
+
+  // Remote: resolve ids (explicit, and/or a --top query), fetch each bundle to
+  // a temp dir, then run the same local slicer. Attribution is preserved.
+  const host = libraryHost(o.host);
+  let targets = o.ids.map((id) => ({ id }));
+  if (o.top) {
+    const sort = o.sort || 'popular';
+    if (!PET_SORTS.includes(sort)) { process.stderr.write(`--sort must be one of: ${PET_SORTS.join(', ')}\n`); process.exit(2); }
+    log('list', 'start', { top: o.top, sort });
+    const picked = [];
+    for (let page = 1; picked.length < o.top; page++) {
+      const data = await libraryList(host, { q: o.q, tags: o.tags, kind: o.kind, sort, page, pageSize: 60 });
+      const pets = data.pets || [];
+      for (const p of pets) { if (picked.length < o.top) picked.push(p); }
+      if (!pets.length || page >= (data.totalPages || 1)) break;
+    }
+    targets = picked.map((p) => ({ id: p.id, meta: p })).concat(targets);
+    log('list', 'ok', { found: targets.length });
+  }
+
+  let ok = 0, failed = 0;
+  for (const t of targets) {
+    try {
+      log('fetch', 'start', { id: t.id });
+      const dir = await fetchLibraryPet(host, t.id);
+      const m = t.meta || await libraryGet(host, t.id) || {};
+      importLocalPet({
+        ...o, srcPath: dir, id: t.id,
+        name: o.ids.length === 1 && o.name ? o.name : (m.displayName || undefined),
+        desc: m.description, source: `${host}/api/pets/${t.id}`,
+        author: m.ownerHandle || m.ownerName || undefined,
+      }, log);
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* */ }
+      ok++;
+    } catch (e) { failed++; log('fetch', 'fail', { id: t.id, message: String(e.message || e) }); }
+  }
+  if (targets.length > 1) log('summary', 'ok', { imported: ok, failed });
 }
 
 function printHelp() {
@@ -860,8 +1050,13 @@ usage:
   familiar pets                             list available pet bundles
   familiar overlay [pet] [--restart|--stop] launch the native desktop pet (auto-builds first run)
   familiar hatch --name N --prompt "..."    hatch a new pet (base -> strips -> sheet); [--reference img]...
+  familiar browse [--search Q] [--tag T]    browse the online pet library (--kind --sort --page)
   familiar import-codex --path <dir|sheet>  import a Codex pet atlas; [--generate-missing] to fill gaps
+  familiar import-codex --id <slug|url>     import a pet from the online library (repeatable)
+  familiar import-codex --top N [--sort ..] bulk-import the top N library pets (--search/--tag/--kind)
   familiar demo                             emit a scripted session (watch in another pane)
+
+library: ${libraryHost()} (override: FAMILIAR_LIBRARY or config.libraryUrl — any codex-pet-share fork)
 
 canonical events (semantic): session.start prompt.submit think tool.start tool.end
   file.edit run.ok run.fail test.pass test.fail review await.input await.approval
@@ -874,6 +1069,14 @@ home: ${HOME}
 // --- entrypoint ---
 const [, , cmd, ...rest] = process.argv;
 try {
+  await main(cmd, rest);
+} catch (e) {
+  if (cmd === 'emit' || cmd === 'hook' || cmd === 'git-event') process.exit(0); // never block a host hook
+  process.stderr.write(String((e && e.stack) || e) + '\n');
+  process.exit(1);
+}
+
+async function main(cmd, rest) {
   switch (cmd) {
     case 'emit': {
       const ev = rest[0];
@@ -898,13 +1101,10 @@ try {
     case 'pets': { process.stdout.write(listPets().join('\n') + '\n'); break; }
     case 'overlay': { launchOverlay(rest); break; }
     case 'hatch': { hatchPet(rest); break; }
-    case 'import-codex': { importCodex(rest); break; }
+    case 'browse': { await browse(rest); break; }
+    case 'import-codex': { await importCodex(rest); break; }
     case 'demo': { runDemo(); break; }
     case 'help': case undefined: { printHelp(); break; }
     default: { process.stderr.write(`unknown command: ${cmd}\n`); printHelp(); process.exit(2); }
   }
-} catch (e) {
-  if (cmd === 'emit' || cmd === 'hook' || cmd === 'git-event') process.exit(0); // never block a host hook
-  process.stderr.write(String((e && e.stack) || e) + '\n');
-  process.exit(1);
 }

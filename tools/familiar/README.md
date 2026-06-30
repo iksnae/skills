@@ -94,15 +94,38 @@ A pet bundle is renderer assets (a sprite sheet + `anim.json`) plus a manifest
 ```sh
 familiar pets                                          # list bundles
 familiar hatch --name vix --prompt "a teal axolotl"    # generate a new pet *
-familiar import-codex --path ~/.codex/pets/fox         # import a Codex atlas *
+familiar import-codex --path ~/.codex/pets/fox         # import a local Codex atlas *
 ```
+
+### The online library
+
+[codex-pets.net](https://codex-pets.net) is a community gallery of thousands of
+Codex pets (source: [`portons/codex-pet-share`](https://github.com/portons/codex-pet-share)).
+Each pet downloads as a `*.codex-pet.zip` — exactly the atlas bundle our importer
+already slices — so the whole library is just a remote source for `import-codex`:
+
+```sh
+familiar browse --search fox --kind animal --sort popular   # discover (no auth)
+familiar import-codex --id clawd                            # fetch + import one *
+familiar import-codex --id clawd --id dario                 # several at once *
+familiar import-codex --top 10 --sort popular               # bulk-import the top N *
+```
+
+`browse` filters are `--search`, `--tag`, `--kind` (`object|animal|person|creature`),
+and `--sort` (`new|popular|views|discussed|random`). Imports preserve creator
+attribution (`source` + `author`) in the pet's `pet.json`. Point at your own
+[codex-pet-share](https://github.com/portons/codex-pet-share) fork with
+`--host`, `FAMILIAR_LIBRARY`, or `config.libraryUrl`.
 
 \* Pet authoring shells out to the `pet-hatch` + `image-generate` skills and an
 image API key — both present in this repo. The runtime (overlay/watch/install/
-emit) is standalone, and the default pet always works without them.
+emit) is standalone, and the default pet always works without them. (`browse`
+itself needs no key; importing slices the atlas, which uses the `pet-hatch`
+scripts.)
 
 Overlay settings: a **Preferences** window (⌘,) manages the active pet, size,
-animation calm, and lets you create or import pets with live progress.
+animation calm, and includes a **Library** tab to search the gallery and import
+a pet with one click — plus create/import-from-disk with live progress.
 
 ## Requirements
 

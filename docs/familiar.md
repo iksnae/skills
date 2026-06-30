@@ -64,6 +64,8 @@ Only the overlay is macOS-bound; everywhere else the terminal renderer is the pa
 
 ## Pets
 
-A pet is a swappable bundle of renderer assets (a sprite sheet + `anim.json`) plus a manifest — separate from the state contract. `familiar pets` lists them; `familiar hatch --name N --prompt "…"` generates a new one through the [pet-hatch](https://github.com/iksnae/skills/tree/main/skills/pet-hatch) + [image-generate](image-generate.md) pipeline; `familiar import-codex --path …` imports a Codex atlas. The always-works default pet ships in the box; sprite pets are generated per-user.
+A pet is a swappable bundle of renderer assets (a sprite sheet + `anim.json`) plus a manifest — separate from the state contract. `familiar pets` lists them; `familiar hatch --name N --prompt "…"` generates a new one through the [pet-hatch](https://github.com/iksnae/skills/tree/main/skills/pet-hatch) + [image-generate](image-generate.md) pipeline; `familiar import-codex --path …` imports a local Codex atlas. The always-works default pet ships in the box; sprite pets are generated per-user.
+
+**The online library.** [codex-pets.net](https://codex-pets.net) (source: [`portons/codex-pet-share`](https://github.com/portons/codex-pet-share)) is a community gallery of thousands of Codex pets. Its API serves each pet as the very atlas bundle the importer already slices, so it is just a remote source — never a new contract. `familiar browse --search fox --kind animal --sort popular` discovers; `familiar import-codex --id clawd` fetches and imports one (or `--top 10` to bulk-import). Imports preserve creator attribution, and `--host`/`FAMILIAR_LIBRARY`/`config.libraryUrl` point at any self-hosted fork. The overlay adds a **Library** Preferences tab: search the gallery and import with one click.
 
 See [`tools/familiar/README.md`](https://github.com/iksnae/skills/tree/main/tools/familiar) for the full reference.
