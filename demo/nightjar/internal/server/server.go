@@ -40,6 +40,24 @@ func (s *Server) ListenAndServe(addr string) error {
 	return srv.ListenAndServe()
 }
 
+// snippetWidth caps how many characters of a paste's first line the API
+// list and web index show as a preview.
+const snippetWidth = 64
+
+// snippet returns the first line of content, capped at snippetWidth. It is
+// the single definition of how nightjar previews a paste, shared by the API
+// list and the web index so the two surfaces can never drift.
+func snippet(content string) string {
+	s := content
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	if len(s) > snippetWidth {
+		s = s[:snippetWidth]
+	}
+	return s
+}
+
 // writeJSONError is the single place that knows how this API
 // serializes an error response.
 func writeJSONError(w http.ResponseWriter, status int, msg string) {
@@ -61,16 +79,9 @@ func (s *Server) handlePastes(w http.ResponseWriter, r *http.Request) {
 		}
 		items := make([]map[string]interface{}, 0, len(pastes))
 		for _, p := range pastes {
-			snippet := p.Content
-			if i := strings.IndexByte(snippet, '\n'); i >= 0 {
-				snippet = snippet[:i]
-			}
-			if len(snippet) > 64 {
-				snippet = snippet[:64]
-			}
 			items = append(items, map[string]interface{}{
 				"id":      p.ID,
-				"snippet": snippet,
+				"snippet": snippet(p.Content),
 				"created": p.Created,
 			})
 		}
@@ -195,17 +206,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	rows := make([]row, 0, len(pastes))
 	for _, p := range pastes {
-		snippet := p.Content
-		if i := strings.IndexByte(snippet, '\n'); i >= 0 {
-			snippet = snippet[:i]
-		}
-		if len(snippet) > 64 {
-			snippet = snippet[:64]
-		}
 		rows = append(rows, row{
 			ID:      p.ID,
 			Date:    time.Unix(p.Created, 0).Format("2006-01-02"),
-			Snippet: snippet,
+			Snippet: snippet(p.Content),
 		})
 	}
 	data := struct {

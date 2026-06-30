@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/iksnae/skills/demo/nightjar/internal/store"
@@ -11,6 +12,26 @@ func newTestServer(t *testing.T) (*Server, *store.Store) {
 	t.Helper()
 	st := store.New(t.TempDir())
 	return New(st), st
+}
+
+// TestSnippetFirstLineAndCap pins the preview behavior the API list and web
+// index used to compute inline in two places. Characterizes current output so
+// the extracted helper can never silently change it.
+func TestSnippetFirstLineAndCap(t *testing.T) {
+	cases := []struct {
+		name, in, want string
+	}{
+		{"short single line", "hello", "hello"},
+		{"first line only", "first\nsecond", "first"},
+		{"caps at width", strings.Repeat("x", 80), strings.Repeat("x", 64)},
+		{"first line then cap", strings.Repeat("y", 80) + "\nrest", strings.Repeat("y", 64)},
+		{"empty", "", ""},
+	}
+	for _, c := range cases {
+		if got := snippet(c.in); got != c.want {
+			t.Errorf("%s: snippet(%q) = %q, want %q", c.name, c.in, got, c.want)
+		}
+	}
 }
 
 func TestDeletePaste(t *testing.T) {

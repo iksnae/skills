@@ -18,11 +18,13 @@ The demos form a chain, not a list. The QA skills ran first: [dogfood-qa](dogfoo
 
 [development-loop](https://github.com/iksnae/skills/tree/main/skills/development-loop) then implemented the missing delete capability as a vertical slice through store, CLI, and API in three test-driven commits — `store.Remove(id)` with an `ErrNotFound` contract, the CLI `rm` command with correct exit codes, and `DELETE /api/pastes/{id}` returning 204/404/405 — and its review step caught the JSON error-response idiom repeated eight times, extracting one `writeJSONError` helper and netting about thirty lines out of `server.go`.
 
+[grumpy](grumpy.md) then reviewed what was there and went straight past the green test suite to the thing the tests don't cover: `Store.Add`/`Remove` are read-modify-write over one JSON file with no lock, reached concurrently by the HTTP server — the blocker behind chaos-qa's measured ~19% write loss — plus a non-atomic `Save`, an index count frozen at startup, and a `Get` that reimplements `Load` and answers 500 where it should answer 404. [janitor](janitor.md) took that inventory and did the disciplined thing: it parked the race and the behavior fixes for the skills that own them, and cleaned only the one safe item — the paste-preview logic duplicated verbatim in two places in `server.go` — behind a single tested `snippet` helper, leaving every surface byte-identical.
+
 Looking ahead to v2, [market-scout](https://github.com/iksnae/skills/tree/main/skills/market-scout) evaluated four embedded storage engines for the store nightjar is outgrowing and ranked bbolt first at 51 of 55 (92.7%), ahead of modernc.org/sqlite, the incumbent flat JSON file, and Pebble — the one engine scoring at or near the top on both heaviest-weighted criteria, zero-cgo and concurrent-write safety, without operational baggage.
 
 ## Demo artifacts
 
-Every artifact below lives in [`docs/demos/`](demos/) and was produced by a real run on 2026-06-11.
+Every artifact below lives in [`docs/demos/`](demos/) and was produced by a real run on 2026-06-11 (the grumpy → janitor review-and-cleanup pass followed on 2026-06-30).
 
 | Artifact | Skill | What it is |
 |---|---|---|
@@ -32,6 +34,8 @@ Every artifact below lives in [`docs/demos/`](demos/) and was produced by a real
 | [certify-nightjar.md](demos/certify-nightjar.md) | certify | Quality report card; overall grade A− (91.2%) |
 | [repo-audit-nightjar.md](demos/repo-audit-nightjar.md) | repo-audit | Read-only health and due-diligence audit of the subtree |
 | [development-loop-nightjar.md](demos/development-loop-nightjar.md) | development-loop | The `nj rm` build in three TDD commits, plus a DRY refactor |
+| [grumpy-nightjar.md](demos/grumpy-nightjar.md) | grumpy | Skeptical review; the store race blocker, non-atomic save, stale count, drifted `Get` |
+| [janitor-nightjar.md](demos/janitor-nightjar.md) | janitor | Safe cleanup of the duplicated `snippet` preview; race + behavior fixes deferred |
 | [market-scout-nightjar.md](demos/market-scout-nightjar.md) | market-scout | Ranked, cited scorecard for the v2 storage engine; bbolt 51/55 |
 | [retrospective-nightjar.md](demos/retrospective-nightjar.md) | retrospective | Evidence-only retrospective of the 6-commit build, every claim cites a SHA |
 | [media-skills-nightjar.md](demos/media-skills-nightjar.md) | media skills | Dogfood run of image-generate, article-audio, remotion-author, remotion-render |

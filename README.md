@@ -47,6 +47,13 @@ Every skill has a full page covering usage, behavior, outputs — and a **real d
 | [development-loop](docs/development-loop.md) | Language-agnostic plan → implement → review → refactor loop with clean-code discipline. |
 | [tree-shaking](docs/tree-shaking.md) | Shrink binaries and bundles — measure, diagnose, pull the right dead-code/packaging lever, prove the win. Language specialties (Swift, Go, JS/TS) under one skill. |
 
+### Review & cleanup
+
+| Skill | What it does |
+|---|---|
+| [grumpy](docs/grumpy.md) | Skeptical senior review — finds where code, plans, or APIs will hurt later; severity-ranked smells with fixes and named test gaps. |
+| [janitor](docs/janitor.md) | Disciplined, behavior-preserving cleanup — the smallest safe patch that makes the next change less scary; pairs with grumpy. |
+
 ### QA & red-teaming
 
 | Skill | What it does |
