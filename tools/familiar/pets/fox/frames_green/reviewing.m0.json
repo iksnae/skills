@@ -1,0 +1,19 @@
+{
+  "schema": "image-gen-receipt-v1",
+  "ts": "2026-06-30T14:48:57Z",
+  "prompt_raw": "The EXACT same character in the identical pose, framing, size, colors and flat chroma green background as the reference image \u2014 but the head tilted to the left, inspecting closely. Change ONLY that; keep everything else pixel-identical. Flat chroma green background (#00b140), no shadow, no reflection, no glow.",
+  "prompt_final": "The EXACT same character in the identical pose, framing, size, colors and flat chroma green background as the reference image \u2014 but the head tilted to the left, inspecting closely. Change ONLY that; keep everything else pixel-identical. Flat chroma green background (#00b140), no shadow, no reflection, no glow.",
+  "prompt_hash": "b96a7ab81c931198fa50325bfae8af51f34717843920ecbd90d375fe6b8c9794",
+  "style_injected": false,
+  "no_style": true,
+  "out": "/Users/k/Projects/skills/tools/familiar/pets/fox/frames_green/reviewing.m0.png",
+  "out_path": "tools/familiar/pets/fox/frames_green/reviewing.m0.png",
+  "size": "1024x1024",
+  "quality": "high",
+  "model": "gpt-image-2",
+  "cost_estimate": 0.04,
+  "caller_pid": 62921,
+  "ok": true,
+  "error": null,
+  "mode": "reference"
+}

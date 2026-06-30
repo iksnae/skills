@@ -1,0 +1,19 @@
+{
+  "schema": "image-gen-receipt-v1",
+  "ts": "2026-06-30T14:46:29Z",
+  "prompt_raw": "The EXACT same fox character, identical framing, size, colors and flat chroma green background as the reference image, but in a focused REVIEWING pose: leaning in slightly, eyes narrowed and scrutinizing, one eyebrow raised, head tilted, inspecting something just off-frame. Flat chroma green background (#00b140), no shadow, no reflection, no glow.",
+  "prompt_final": "The EXACT same fox character, identical framing, size, colors and flat chroma green background as the reference image, but in a focused REVIEWING pose: leaning in slightly, eyes narrowed and scrutinizing, one eyebrow raised, head tilted, inspecting something just off-frame. Flat chroma green background (#00b140), no shadow, no reflection, no glow.",
+  "prompt_hash": "28393bfa78a719e735b507aca4215858ea0e9c3327e7814b0992e25a229a3366",
+  "style_injected": false,
+  "no_style": true,
+  "out": "/Users/k/Projects/skills/tools/familiar/pets/fox/frames_green/reviewing.png",
+  "out_path": "tools/familiar/pets/fox/frames_green/reviewing.png",
+  "size": "1024x1024",
+  "quality": "high",
+  "model": "gpt-image-2",
+  "cost_estimate": 0.04,
+  "caller_pid": 57037,
+  "ok": true,
+  "error": null,
+  "mode": "reference"
+}

@@ -65,10 +65,10 @@
     },
     "reviewing": {
       "frames": [
-        "working.png",
-        "working.m0.png",
-        "working.m1.png",
-        "working.m0.png"
+        "reviewing.png",
+        "reviewing.m0.png",
+        "reviewing.m1.png",
+        "reviewing.m0.png"
       ],
       "frameMs": 300,
       "mode": "loop"
