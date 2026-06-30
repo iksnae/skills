@@ -550,11 +550,25 @@ function runDemo() {
 // --- native overlay renderer: launch/stop the SwiftUI desktop pet ---
 const OVERLAY_DIR = path.join(__dirname, 'overlay');
 const PETS_DIR = path.join(__dirname, 'pets');
+// A user-writable build cache, so the overlay builds on first run even when the
+// CLI is installed read-only (npm -g / npx). Dev builds in OVERLAY_DIR win.
+const BUILD_HOME = path.join(HOME, 'overlay');
+let PKG_VERSION = '0';
+try { PKG_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || '0'; }
+catch { /* not packaged */ }
 
 function overlayBinary() {
+  // dev: built in place
   for (const cfg of ['release', 'debug']) {
     const p = path.join(OVERLAY_DIR, '.build', cfg, 'FamiliarOverlay');
     if (fs.existsSync(p)) return p;
+  }
+  // installed: cached build keyed by package version (rebuild when it changes)
+  const cached = path.join(BUILD_HOME, '.build', 'release', 'FamiliarOverlay');
+  if (fs.existsSync(cached)) {
+    let stamp = '';
+    try { stamp = fs.readFileSync(path.join(BUILD_HOME, '.familiar-version'), 'utf8').trim(); } catch { /* */ }
+    if (stamp === PKG_VERSION) return cached;
   }
   return null;
 }
@@ -563,9 +577,27 @@ function buildOverlay() {
   // Prepend the system toolchain so /usr/bin/ld is used — a conda `ld` on PATH
   // shadows it and fails linking with `-no_warn_duplicate_libraries`.
   const env = { ...process.env, PATH: `/usr/bin:/usr/sbin:/bin:/sbin:${process.env.PATH || ''}` };
+  // Mirror the overlay sources into a writable cache and build there, so a
+  // read-only install still builds on first run. (Dev: overlayBinary prefers
+  // an in-place OVERLAY_DIR/.build, so this only runs for installed CLIs.)
+  fs.mkdirSync(BUILD_HOME, { recursive: true });
+  try {
+    fs.cpSync(path.join(OVERLAY_DIR, 'Package.swift'), path.join(BUILD_HOME, 'Package.swift'));
+    fs.cpSync(path.join(OVERLAY_DIR, 'Sources'), path.join(BUILD_HOME, 'Sources'), { recursive: true });
+  } catch (e) {
+    process.stderr.write(`familiar overlay: could not stage sources (${e.message})\n`);
+    return null;
+  }
   process.stdout.write('familiar overlay: building (first run, ~minute)...\n');
-  const r = spawnSync('swift', ['build', '-c', 'release'], { cwd: OVERLAY_DIR, env, stdio: 'inherit' });
-  return r.status === 0 ? overlayBinary() : null;
+  const r = spawnSync('swift', ['build', '-c', 'release'], { cwd: BUILD_HOME, env, stdio: 'inherit' });
+  if (r.error && r.error.code === 'ENOENT') {
+    process.stderr.write('familiar overlay: `swift` not found. Install the Xcode Command Line Tools:\n  xcode-select --install\n');
+    return null;
+  }
+  if (r.status !== 0) return null;
+  try { fs.writeFileSync(path.join(BUILD_HOME, '.familiar-version'), PKG_VERSION); } catch { /* */ }
+  const bin = path.join(BUILD_HOME, '.build', 'release', 'FamiliarOverlay');
+  return fs.existsSync(bin) ? bin : null;
 }
 
 function overlayPids() {
@@ -584,6 +616,13 @@ function launchOverlay(args) {
     if (!pids.length) { process.stdout.write('familiar overlay: not running\n'); return; }
     spawnSync('pkill', ['-f', 'FamiliarOverlay']);
     process.stdout.write(`familiar overlay: stopped (pid ${pids.join(', ')})\n`);
+    return;
+  }
+  // The graphical overlay is macOS-only (AppKit). Everywhere else, the terminal
+  // renderer is the parallel solution — same state, ASCII pet.
+  if (process.platform !== 'darwin') {
+    process.stdout.write('familiar overlay: the desktop overlay is macOS-only.\n'
+      + '  On this platform, run the terminal pet instead:  familiar watch\n');
     return;
   }
   const restart = args.includes('--restart');
@@ -607,7 +646,10 @@ function launchOverlay(args) {
 
   const bin = overlayBinary() || buildOverlay();
   if (!bin) {
-    process.stderr.write(`familiar overlay: no binary and build failed.\n  build it: (cd ${OVERLAY_DIR} && swift build -c release)\n`);
+    process.stderr.write('familiar overlay: no binary and the build failed.\n'
+      + '  Needs the Xcode Command Line Tools (xcode-select --install).\n'
+      + `  Or build manually: (cd ${OVERLAY_DIR} && swift build -c release)\n`
+      + '  No graphics? Use the terminal pet:  familiar watch\n');
     process.exit(1);
   }
 
@@ -630,6 +672,14 @@ const STRIP_PY = path.join(REPO_ROOT, 'skills/pet-hatch/scripts/strip.py');
 const PACK_PY = path.join(REPO_ROOT, 'skills/pet-hatch/scripts/pack.py');
 const IMPORT_CODEX = path.join(REPO_ROOT, 'skills/pet-hatch/scripts/import_codex.py');
 const USER_PETS_DIR = path.join(HOME, 'pets');
+
+// Pet authoring (hatch/import) shells out to the pet-hatch + image-generate
+// python scripts, which live in the skills repo — not bundled in the lean CLI
+// package. The runtime (overlay/watch/install/emit) works standalone; authoring
+// needs a clone. Detect + explain rather than emitting a python stack trace.
+function authoringScriptsAvailable() {
+  return fs.existsSync(STRIP_PY) && fs.existsSync(PACK_PY);
+}
 
 // The proven stable base style (Codex's house style) — compact pixel-art reads
 // cleanly at small size and stays stable under the deterministic extraction.
@@ -665,6 +715,7 @@ function hatchPet(rest) {
     process.stderr.write('usage: familiar hatch --name <name> --prompt <description> [--reference img]...\n');
     process.exit(2);
   }
+  if (!authoringScriptsAvailable()) { log('error', 'fail', { message: 'pet authoring needs the skills repo (pet-hatch + image-generate scripts) — run from a clone of iksnae/skills' }); process.exit(2); }
   if (!process.env.OPENAI_API_KEY) { log('error', 'fail', { message: 'OPENAI_API_KEY not set' }); process.exit(2); }
 
   const id = slug(o.name);
@@ -728,6 +779,7 @@ function importCodex(rest) {
     process.exit(2);
   }
   if (!fs.existsSync(o.srcPath)) { log('error', 'fail', { message: `not found: ${o.srcPath}` }); process.exit(2); }
+  if (!fs.existsSync(IMPORT_CODEX) || !authoringScriptsAvailable()) { log('error', 'fail', { message: 'codex import needs the skills repo (pet-hatch scripts) — run from a clone of iksnae/skills' }); process.exit(2); }
 
   // Resolve the spritesheet + name/description from a pet dir or a direct sheet.
   let sheet = o.srcPath, name = o.name, desc = 'Imported Codex pet.';

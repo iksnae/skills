@@ -1,63 +1,118 @@
-# familiar (prototype spine)
+# familiar
 
-A lean, front-end-first **ambient-pet** prototype — and a deliberate scale-model of the
-[ambisphere runtime](https://github.com/ambisphere/runtime) pipeline. It is the working
-evidence for [ambisphere/runtime#10](https://github.com/ambisphere/runtime/issues/10).
+A universal, cross-harness **ambient desktop pet** for AI coding agents. Your
+agent gets a familiar — a small creature that reacts to what it's doing: it
+thinks while it reasons, works while it runs tools, celebrates a passing build,
+and looks up at you when it needs a hand.
+
+familiar is a deliberate **front-end prototype for the [ambisphere runtime](https://github.com/ambisphere/runtime)**
+(spike: `ambisphere/runtime#10`). It models the same pipeline at small scale:
 
 ```
-emit (fact)  ->  ~/.familiar/events.ndjson   the log is the source of truth
-  reduce     ->  ~/.familiar/state.json       a pure fold; derived + replayable
-  render     ->  watch / statusline           renderer-agnostic; reads state only
+  emit (a fact)  →  ~/.familiar/events.ndjson   the append-only log is the source of truth
+  reduce         →  ~/.familiar/state.json      a pure fold; derived + replayable
+  render         →  overlay · watch · statusline renderer-agnostic; reads state only
 ```
 
-A "pet" is just **one persona projection** of an ambient entity. The point is the pipeline.
+The contract between agents and pets is a **semantic state vocabulary**, never
+presentational frames. An agent says `working`; a renderer decides what that
+looks like.
 
-## Try it (zero setup, zero deps)
+## Quick start
 
-```bash
-node tools/familiar/familiar.mjs watch        # pane 1 — Pip animates for the current state
-node tools/familiar/familiar.mjs demo         # pane 2 — emits a scripted session
+```sh
+# macOS — the floating desktop pet (builds once on first run, ~1 min)
+npx @iksnae/familiar overlay
+
+# anywhere Node runs — the terminal pet
+npx @iksnae/familiar watch
+
+# wire it to your agent so it reacts to real work, then restart the agent
+npx @iksnae/familiar install claude-code --write
 ```
 
-Or drive it by hand:
+Or install once: `npm i -g @iksnae/familiar`, then run `familiar …`.
 
-```bash
-node tools/familiar/familiar.mjs emit tool.start
-node tools/familiar/familiar.mjs emit await.input   # Pip asks; attention -> interrupt
-node tools/familiar/familiar.mjs state              # inspect the resolved state
+## Renderer tiers
+
+One core, many surfaces — pick by platform and need:
+
+| Tier | Command | Where | What |
+|------|---------|-------|------|
+| 1 | `familiar overlay` | **macOS** | floating always-on-top desktop pet (AppKit) |
+| 2 | `familiar watch` | any OS | animated ASCII pet in the terminal |
+| 3 | `familiar statusline` | any host | a one-line pet for a status bar |
+
+The Node core and Tiers 2–3 run anywhere. Only the overlay is macOS-bound; on
+other platforms `familiar overlay` points you to `familiar watch`. **That's the
+cross-platform story — the terminal renderer is the parallel solution, no
+separate build.**
+
+## Wiring a harness
+
+familiar reacts to whatever emits events. Two adapters ship today:
+
+```sh
+familiar install claude-code --write   # SessionStart/PreToolUse/Stop/… → events + speech
+familiar install git --write           # post-commit/pre-push → milestones (works with any tool)
 ```
 
-## Wire it into Claude Code (dogfood)
+Both are reversible and non-destructive (they back up / append, never clobber).
+Anything can drive the pet directly, too:
 
-```bash
-node tools/familiar/familiar.mjs install claude-code            # dry run — prints the snippet
-node tools/familiar/familiar.mjs install claude-code --write    # merges into ~/.claude/settings.json (backup kept)
+```sh
+familiar emit working
+familiar emit message "Refactoring the reducer…"
 ```
 
-Maps host hooks → canonical events: `SessionStart→session.start`, `UserPromptSubmit→prompt.submit`,
-`PreToolUse→tool.start`, `PostToolUse→tool.end`, `Notification→await.input`, `Stop→turn.stop`,
-`SessionEnd→session.end`. Restart Claude Code afterward. Emitters run async and always exit 0, so a
-`PreToolUse` hook can never block a tool.
+## The semantic vocabulary
 
-## Design notes (why it's shaped this way)
+The API is these states, not animations:
 
-These mirror ambisphere's recorded **rejections**, so prototype findings transfer without rework:
+`idle` · `thinking` · `working` · `reviewing` · `awaiting-human` · `succeeded` ·
+`failed` · `errored` · `rate-limited` · `milestone` · `sleeping`
 
-- **Semantic states are the contract**, not frames. `idle · thinking · working · awaiting-human ·
-  reviewing · succeeded · failed · errored · rate-limited · milestone · sleeping`. Presentational
-  notions like `running-left`/`jumping` are renderer animations, never the API.
-- **Manifest ≠ renderer bundle.** `pet.json` describes the entity + named states. ASCII art lives in
-  a separate, swappable `ascii.json`; a sprite atlas would attach the same way. No `spritesheetPath`
-  baked into the manifest.
-- **Vendor-neutral home** (`~/.familiar`), never `~/.codex`.
-- **Pure reducer.** The fold has no clock; transient "flash" states (a brief `succeeded`/`failed`
-  overlay) carry an `until` value that the *renderer* compares against now — the fold stays
-  deterministic and replayable.
-- **Attention routing** is a first-class, minimal concern: each resolved state maps to
-  `none | glance | interrupt`.
+Plus orthogonal channels a renderer may surface: a transient **message**
+(speech bubble), a **tool** indicator (which tool is active), and **flash**
+outcomes that decay on their own. Two interaction states — `held`, `poked` —
+are renderer-local (you grab or poke the pet), never part of the agent API.
 
-## Status
+## Pets
 
-Spine only: `emit · reduce · state · watch · statusline · install claude-code` + one default ASCII
-pet. Next: graphical renderer (kitty/iTerm2/sixel → ASCII ladder), `pet-hatch` authoring, the other
-8 harness adapters, and a Codex-export adapter. See ambisphere/runtime#10 for the findings track.
+A pet bundle is renderer assets (a sprite sheet + `anim.json`) plus a manifest
+(`pet.json`) — swappable, separate from the state contract.
+
+```sh
+familiar pets                                          # list bundles
+familiar hatch --name vix --prompt "a teal axolotl"    # generate a new pet *
+familiar import-codex --path ~/.codex/pets/fox         # import a Codex atlas *
+```
+
+\* Pet authoring shells out to the `pet-hatch` + `image-generate` skills and an
+image API key — available when you run from a clone of `iksnae/skills`, not from
+the lean npm package. The runtime (overlay/watch/install/emit) is standalone.
+
+Overlay settings: a **Preferences** window (⌘,) manages the active pet, size,
+animation calm, and lets you create or import pets with live progress.
+
+## Requirements
+
+- **Node ≥ 18** (the CLI is zero-dependency).
+- **macOS overlay**: the Xcode Command Line Tools (`xcode-select --install`) for
+  the one-time `swift build`. The binary is cached under `~/.familiar/overlay`,
+  so a read-only / `npx` install still builds and runs. No code signing needed —
+  it's built locally.
+
+## How it stays honest to ambisphere
+
+- The contract is **semantic state**, not frames — `running-left`, a tool glyph,
+  a blink are renderer choices, never the API.
+- Reducers are **pure**: no wall-clock in the fold. Time-based decay (flash,
+  message, tool) resolves at *render* time, so the fold stays deterministic and
+  replayable.
+- State lives under a vendor-neutral home (`~/.familiar`).
+- Renderers **subscribe**; they never drive the runtime.
+
+---
+
+Part of [iksnae/skills](https://github.com/iksnae/skills). License: MIT.
