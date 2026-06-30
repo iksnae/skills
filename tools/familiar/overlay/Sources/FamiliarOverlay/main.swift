@@ -16,6 +16,7 @@
 import AppKit
 import Foundation
 import QuartzCore
+import SwiftUI
 
 // MARK: - State (read side)
 
@@ -111,37 +112,62 @@ final class AnimManifest {
     }
 }
 
-// Resolve the sprite frames dir, in priority order:
-//   1. FAMILIAR_FRAMES — an explicit dir (absolute or ~-expanded).
-//   2. FAMILIAR_PET (+ optional FAMILIAR_PETS_DIR) — read the pet bundle's
-//      pet.json and follow its renderer's `dir`, so callers pass a pet id and
-//      the renderer finds the frames itself (no path juggling).
-//   3. a positional argv[1] dir.
-//   4. the default fox bundle under ~/.familiar/pets.
-func framesDirectory() -> URL? {
+// MARK: - Familiar home, pets root, and config (~/.familiar/config.json)
+//
+// The active pet and on-screen size are settings the user can change live (from
+// the settings window or by editing config.json). The overlay polls config and
+// hot-swaps. Resolution priority: config.json, then env, then a default.
+
+func familiarHome() -> URL {
     let env = ProcessInfo.processInfo.environment
-    if let f = env["FAMILIAR_FRAMES"] {
-        return URL(fileURLWithPath: (f as NSString).expandingTildeInPath).standardizedFileURL
-    }
-    if let dir = petFramesDirectory(env: env) { return dir }
-    if CommandLine.arguments.count > 1 {
-        return URL(fileURLWithPath: CommandLine.arguments[1]).standardizedFileURL
-    }
-    let def = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".familiar/pets/fox/frames")
-    return FileManager.default.fileExists(atPath: def.path) ? def : nil
+    return env["FAMILIAR_HOME"].map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
+        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".familiar")
 }
 
-// Resolve a pet bundle's sprite frames dir from its pet.json. The pets root is
-// FAMILIAR_PETS_DIR (else ~/.familiar/pets); the pet id is FAMILIAR_PET. We
-// follow the green-sprite renderer's `dir`, falling back to any renderer that
-// declares a `dir`.
-func petFramesDirectory(env: [String: String]) -> URL? {
-    guard let pet = env["FAMILIAR_PET"] else { return nil }
-    let petsRoot: URL = env["FAMILIAR_PETS_DIR"].map {
-        URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath)
-    } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".familiar/pets")
-    let bundle = petsRoot.appendingPathComponent(pet)
+func petsRoot() -> URL {
+    let env = ProcessInfo.processInfo.environment
+    return env["FAMILIAR_PETS_DIR"].map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
+        ?? familiarHome().appendingPathComponent("pets")
+}
+
+func listPetIds() -> [String] {
+    let root = petsRoot()
+    guard let entries = try? FileManager.default.contentsOfDirectory(atPath: root.path) else { return [] }
+    return entries.filter {
+        FileManager.default.fileExists(atPath: root.appendingPathComponent($0).appendingPathComponent("pet.json").path)
+    }.sorted()
+}
+
+func readConfig() -> [String: Any] {
+    guard let data = try? Data(contentsOf: familiarHome().appendingPathComponent("config.json")),
+          let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+    return o
+}
+
+func writeConfig(_ updates: [String: Any]) {
+    var o = readConfig()
+    for (k, v) in updates { o[k] = v }
+    let home = familiarHome()
+    try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    if let data = try? JSONSerialization.data(withJSONObject: o, options: [.prettyPrinted, .sortedKeys]) {
+        try? data.write(to: home.appendingPathComponent("config.json"))
+    }
+}
+
+// Active pet/size: config wins, then env, then default.
+func activePet() -> String {
+    if let p = readConfig()["pet"] as? String, !p.isEmpty { return p }
+    return ProcessInfo.processInfo.environment["FAMILIAR_PET"] ?? "fox"
+}
+
+func activeSize() -> Double {
+    if let s = (readConfig()["size"] as? NSNumber)?.doubleValue, s >= 80 { return s }
+    return ProcessInfo.processInfo.environment["FAMILIAR_SIZE"].flatMap { Double($0) } ?? 150
+}
+
+// Resolve a pet bundle's sprite frames dir from its pet.json renderer `dir`.
+func petFramesDir(_ pet: String) -> URL? {
+    let bundle = petsRoot().appendingPathComponent(pet)
     guard let data = try? Data(contentsOf: bundle.appendingPathComponent("pet.json")),
           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let renderers = obj["renderers"] as? [String: Any] else { return nil }
@@ -151,6 +177,14 @@ func petFramesDirectory(env: [String: String]) -> URL? {
     guard let sub = chosen?["dir"] as? String else { return nil }
     let dir = bundle.appendingPathComponent(sub)
     return FileManager.default.fileExists(atPath: dir.path) ? dir : nil
+}
+
+// Frames dir for a pet: FAMILIAR_FRAMES override wins (dev), else the bundle.
+func framesDirectory(forPet pet: String) -> URL? {
+    if let f = ProcessInfo.processInfo.environment["FAMILIAR_FRAMES"] {
+        return URL(fileURLWithPath: (f as NSString).expandingTildeInPath).standardizedFileURL
+    }
+    return petFramesDir(pet)
 }
 
 // green-screen chroma key -> transparent (a no-op if the frame already has alpha)
@@ -372,6 +406,71 @@ final class PetView: NSView {
     }
 }
 
+// MARK: - Settings window (SwiftUI; writes config.json, which the overlay polls)
+
+final class SettingsWindowController: NSWindowController {
+    convenience init() {
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 360),
+                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        win.title = "Familiar Settings"
+        win.contentViewController = NSHostingController(rootView: SettingsView())
+        win.center()
+        win.isReleasedWhenClosed = false
+        self.init(window: win)
+    }
+}
+
+struct SettingsView: View {
+    var body: some View {
+        TabView {
+            GeneralTab().tabItem { Label("General", systemImage: "gearshape") }
+            PetsTab().tabItem { Label("Pets", systemImage: "pawprint") }
+        }
+        .frame(width: 440, height: 360)
+    }
+}
+
+struct GeneralTab: View {
+    @State private var size: Double = activeSize()
+    var body: some View {
+        Form {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Pet size: \(Int(size)) px").font(.subheadline)
+                Slider(value: $size, in: 90...300, step: 2)
+                    .onChange(of: size) { _, v in writeConfig(["size": v]) }
+                Text("Drag the pet anywhere on screen to reposition it.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .padding()
+        }
+    }
+}
+
+struct PetsTab: View {
+    @State private var pets: [String] = listPetIds()
+    @State private var selected: String = activePet()
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Active pet").font(.headline)
+            ForEach(pets, id: \.self) { pet in
+                HStack(spacing: 8) {
+                    Image(systemName: pet == selected ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(pet == selected ? Color.accentColor : .secondary)
+                    Text(pet).font(.body)
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { selected = pet; writeConfig(["pet": pet]) }
+            }
+            Spacer()
+            Button("Refresh list") { pets = listPetIds() }
+                .controlSize(.small)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
 // MARK: - App
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -381,20 +480,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var anim: AnimManifest!
     private var frameCache: FrameCache!
     private var current = ""
+    private var loadedPet = ""
+    private var loadedSize: Double = 0
+    private var settings: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ note: Notification) {
-        let dir = framesDirectory()
-        anim = AnimManifest(dir)
-        frameCache = FrameCache(dir)
-        let src = frameCache.sheet.map { "sheet (\($0.rects.count) frames)" } ?? "discrete PNGs"
-        FileHandle.standardError.write(Data("familiar-overlay: frames=\(dir?.path ?? "none") source=\(src)\n".utf8))
-        // On-screen size — a small ambient companion by default. Sprite sources
-        // stay higher-res and downscale crisply (retina contentsScale set above);
-        // FAMILIAR_SIZE overrides the square edge in points.
-        let dim = ProcessInfo.processInfo.environment["FAMILIAR_SIZE"].flatMap { Double($0) } ?? 150
-        let size = NSSize(width: dim, height: dim)
+        let size = activeSize()
+        loadedSize = size
 
-        panel = NSPanel(contentRect: NSRect(origin: .zero, size: size),
+        panel = NSPanel(contentRect: NSRect(origin: .zero, size: NSSize(width: size, height: size)),
                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -403,20 +497,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.isMovableByWindowBackground = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
 
-        petView = PetView(frame: NSRect(origin: .zero, size: size))
+        petView = PetView(frame: NSRect(origin: .zero, size: NSSize(width: size, height: size)))
         let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Preferences…", action: #selector(openPreferences), keyEquivalent: ","))
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Familiar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.items.forEach { $0.target = $0.action == #selector(openPreferences) ? self : nil }
         petView.menu = menu
         panel.contentView = petView
 
         if let screen = NSScreen.main {
             let v = screen.visibleFrame
-            panel.setFrameOrigin(NSPoint(x: v.maxX - size.width - 24, y: v.minY + 24))
+            panel.setFrameOrigin(NSPoint(x: v.maxX - size - 24, y: v.minY + 24))
         }
         panel.orderFrontRegardless()
 
+        loadPet(activePet())
         update()
-        Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.update() }
+        Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.tick() }
+    }
+
+    @objc func openPreferences() {
+        if settings == nil { settings = SettingsWindowController() }
+        settings?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // (Re)load a pet bundle's frames + manifest.
+    private func loadPet(_ pet: String) {
+        let dir = framesDirectory(forPet: pet)
+        anim = AnimManifest(dir)
+        frameCache = FrameCache(dir)
+        loadedPet = pet
+        current = ""   // force a reshow on the next tick
+        let src = frameCache.sheet.map { "sheet (\($0.rects.count) frames)" } ?? "discrete PNGs"
+        FileHandle.standardError.write(Data("familiar-overlay: pet=\(pet) frames=\(dir?.path ?? "none") source=\(src)\n".utf8))
+    }
+
+    private func applySize(_ size: Double) {
+        loadedSize = size
+        let origin = panel.frame.origin
+        panel.setFrame(NSRect(x: origin.x, y: origin.y, width: size, height: size), display: true)
+        petView.frame = NSRect(origin: .zero, size: NSSize(width: size, height: size))
+        petView.needsLayout = true
+    }
+
+    private func tick() {
+        // Live-apply settings changes (pet swap, resize) from config.json.
+        let pet = activePet()
+        if pet != loadedPet { loadPet(pet) }
+        let size = activeSize()
+        if abs(size - loadedSize) > 0.5 { applySize(size) }
+        update()
     }
 
     private func update() {
