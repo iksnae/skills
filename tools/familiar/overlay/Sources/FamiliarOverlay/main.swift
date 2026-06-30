@@ -3,7 +3,7 @@
 // One renderer that SUBSCRIBES to runtime state (it never drives it): it reads
 // ~/.familiar/state.json (written by `familiar reduce`), resolves the semantic
 // state (with render-time flash decay), and plays that state's animation loop
-// from a sprite bundle, with procedural motion layered on top. A faithful
+// from a sprite bundle. All motion comes from the frames themselves. A faithful
 // scale-model of ambisphere's renderer-as-consumer principle and Apple
 // flagship-renderer tier. See ambisphere/runtime#10.
 //
@@ -104,13 +104,46 @@ final class AnimManifest {
     }
 }
 
+// Resolve the sprite frames dir, in priority order:
+//   1. FAMILIAR_FRAMES — an explicit dir (absolute or ~-expanded).
+//   2. FAMILIAR_PET (+ optional FAMILIAR_PETS_DIR) — read the pet bundle's
+//      pet.json and follow its renderer's `dir`, so callers pass a pet id and
+//      the renderer finds the frames itself (no path juggling).
+//   3. a positional argv[1] dir.
+//   4. the default fox bundle under ~/.familiar/pets.
 func framesDirectory() -> URL? {
     let env = ProcessInfo.processInfo.environment
-    if let f = env["FAMILIAR_FRAMES"] { return URL(fileURLWithPath: f) }
-    if CommandLine.arguments.count > 1 { return URL(fileURLWithPath: CommandLine.arguments[1]) }
+    if let f = env["FAMILIAR_FRAMES"] {
+        return URL(fileURLWithPath: (f as NSString).expandingTildeInPath).standardizedFileURL
+    }
+    if let dir = petFramesDirectory(env: env) { return dir }
+    if CommandLine.arguments.count > 1 {
+        return URL(fileURLWithPath: CommandLine.arguments[1]).standardizedFileURL
+    }
     let def = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".familiar/pets/fox/frames")
     return FileManager.default.fileExists(atPath: def.path) ? def : nil
+}
+
+// Resolve a pet bundle's sprite frames dir from its pet.json. The pets root is
+// FAMILIAR_PETS_DIR (else ~/.familiar/pets); the pet id is FAMILIAR_PET. We
+// follow the green-sprite renderer's `dir`, falling back to any renderer that
+// declares a `dir`.
+func petFramesDirectory(env: [String: String]) -> URL? {
+    guard let pet = env["FAMILIAR_PET"] else { return nil }
+    let petsRoot: URL = env["FAMILIAR_PETS_DIR"].map {
+        URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath)
+    } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".familiar/pets")
+    let bundle = petsRoot.appendingPathComponent(pet)
+    guard let data = try? Data(contentsOf: bundle.appendingPathComponent("pet.json")),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let renderers = obj["renderers"] as? [String: Any] else { return nil }
+    let preferred = renderers["ascii-green-sprites"] as? [String: Any]
+    let chosen = preferred
+        ?? renderers.values.compactMap { $0 as? [String: Any] }.first { $0["dir"] is String }
+    guard let sub = chosen?["dir"] as? String else { return nil }
+    let dir = bundle.appendingPathComponent(sub)
+    return FileManager.default.fileExists(atPath: dir.path) ? dir : nil
 }
 
 // green-screen chroma key -> transparent (a no-op if the frame already has alpha)
@@ -281,17 +314,10 @@ final class PetView: NSView {
     private func tick() {
         phase += 1.0 / 60.0
         let interrupt = (attention == "interrupt")
-        let speed: CGFloat = interrupt ? 6.5 : 2.0
-        let amp: CGFloat = interrupt ? 9.0 : 3.0
-        let bob = sin(phase * speed) * amp
-        let breath = 1.0 + sin(phase * speed * 0.8) * 0.03
 
+        // The view itself stays put — motion comes only from the sprite frames.
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        var t = CATransform3DIdentity
-        t = CATransform3DTranslate(t, 0, bob, 0)
-        t = CATransform3DScale(t, breath, breath, 1)
-        content.transform = t
 
         if usingFrames && !frames.isEmpty {
             let idx = Int((Double(phase) * 1000.0) / frameMs) % frames.count
