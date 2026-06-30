@@ -328,13 +328,34 @@ final class PetView: NSView {
     private let faceLayer = CATextLayer()
     private let labelLayer = CATextLayer()
 
+    // Three frame sources; `interaction` decides which feeds the player. The
+    // agent source comes from state.json; held/poked are local interaction
+    // animations the renderer plays when the human grabs or pokes the pet.
+    private var agentFrames: [CGImage] = []
+    private var agentDurs: [Double] = [200]
+    private var heldFrames: [CGImage] = []
+    private var heldDurs: [Double] = [200]
+    private var pokedFrames: [CGImage] = []
+    private var pokedDurs: [Double] = [110]
+
+    // active set the player walks (resolved from the source above)
     private var frames: [CGImage] = []
     private var durations: [Double] = [200]
     private var totalMs: Double = 200
+    private var activeSource = ""
+
+    private var interaction: String? = nil       // nil | "held" | "poked"
+    private var interactionUntil: Date? = nil     // nil while held; a deadline for poke/settle
+
     private var phase: CGFloat = 0
     private var attention = "none"
     private var usingFrames = false
     private var lastFrameIndex = -1
+
+    // manual drag/poke (we move the window ourselves so we can tell a drag from a poke)
+    private var dragStartMouse: NSPoint = .zero
+    private var dragStartOrigin: NSPoint = .zero
+    private var didDrag = false
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -392,22 +413,84 @@ final class PetView: NSView {
             faceLayer.foregroundColor = a.cgColor
             labelLayer.string = state.uppercased() + (attention == "interrupt" ? "  !" : "")
             card.borderColor = a.cgColor
+            agentFrames = []
             return
         }
-        usingFrames = true
         card.isHidden = true
         imageLayer.isHidden = false
-        let durs = durations.count == frames.count ? durations.map { max(40, $0) }
-                                                    : Array(repeating: 200.0, count: frames.count)
-        if frames.count != self.frames.count { lastFrameIndex = -1 }   // reset only on a new set
-        self.frames = frames
-        self.durations = durs
-        self.totalMs = max(1, durs.reduce(0, +))
+        agentFrames = frames
+        agentDurs = durations.count == frames.count ? durations.map { max(40, $0) }
+                                                     : Array(repeating: 200.0, count: frames.count)
+        applyActive()
+    }
+
+    // The frames the renderer plays for a grab (held) and a poke/drop-settle
+    // (poked). AppDelegate resolves these with a fallback so they're always set.
+    func setInteractionFrames(held: [CGImage], heldDurs: [Double], poked: [CGImage], pokedDurs: [Double]) {
+        heldFrames = held
+        self.heldDurs = heldDurs.count == held.count ? heldDurs.map { max(40, $0) }
+                                                     : Array(repeating: 200.0, count: held.count)
+        pokedFrames = poked
+        self.pokedDurs = pokedDurs.count == poked.count ? pokedDurs.map { max(40, $0) }
+                                                        : Array(repeating: 110.0, count: poked.count)
+    }
+
+    // Pick the active frame set from the current interaction; reset the playhead
+    // only when the source actually changes so a swap doesn't pop mid-frame.
+    private func applyActive() {
+        var f = agentFrames, d = agentDurs
+        if interaction == "held", !heldFrames.isEmpty { f = heldFrames; d = heldDurs }
+        else if interaction == "poked", !pokedFrames.isEmpty { f = pokedFrames; d = pokedDurs }
+        guard !f.isEmpty else { usingFrames = false; return }
+        let src = interaction ?? "agent"
+        if src != activeSource { activeSource = src; lastFrameIndex = -1; phase = 0 }
+        frames = f
+        durations = d
+        totalMs = max(1, d.reduce(0, +))
+        usingFrames = true
+    }
+
+    func beginHeld() { interaction = "held"; interactionUntil = nil; applyActive() }
+    func poke() {
+        interaction = "poked"
+        interactionUntil = Date().addingTimeInterval(max(0.4, pokedDurs.reduce(0, +) / 1000.0))
+        applyActive()
+    }
+    func release() {   // a short poked-style settle, then resume the agent state
+        if !pokedFrames.isEmpty {
+            interaction = "poked"
+            interactionUntil = Date().addingTimeInterval(max(0.35, pokedDurs.reduce(0, +) / 1000.0))
+        } else { interaction = nil; interactionUntil = nil }
+        applyActive()
+    }
+
+    override var mouseDownCanMoveWindow: Bool { false }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with e: NSEvent) {
+        dragStartMouse = NSEvent.mouseLocation
+        dragStartOrigin = window?.frame.origin ?? .zero
+        didDrag = false
+    }
+    override func mouseDragged(with e: NSEvent) {
+        let now = NSEvent.mouseLocation
+        let dx = now.x - dragStartMouse.x, dy = now.y - dragStartMouse.y
+        if !didDrag && (abs(dx) > 2 || abs(dy) > 2) { didDrag = true; beginHeld() }
+        if didDrag { window?.setFrameOrigin(NSPoint(x: dragStartOrigin.x + dx, y: dragStartOrigin.y + dy)) }
+    }
+    override func mouseUp(with e: NSEvent) {
+        if didDrag { release() } else { poke() }
+        didDrag = false
     }
 
     private func tick() {
         phase += 1.0 / 60.0
         let interrupt = (attention == "interrupt")
+
+        // A timed interaction (poke / drop-settle) expires back to the agent state.
+        if let until = interactionUntil, Date() >= until {
+            interaction = nil; interactionUntil = nil; applyActive()
+        }
 
         // The view itself stays put — motion comes only from the sprite frames.
         CATransaction.begin()
@@ -751,7 +834,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.level = .floating
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false   // PetView drags manually (to tell drag from poke)
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
 
         petView = PetView(frame: NSRect(origin: .zero, size: NSSize(width: size, height: size)))
@@ -800,8 +883,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         frameCache = FrameCache(dir)
         loadedPet = pet
         current = ""   // force a reshow on the next tick
+
+        // Interaction frames: dedicated held/poked if the bundle has them, else
+        // fall back to a sensible agent state so the motion is still real frames
+        // (held -> calm idle, poked -> the lively milestone hop).
+        let (hf, hd) = interactionFrames("held", fallback: "idle")
+        let (pf, pd) = interactionFrames("poked", fallback: "milestone")
+        petView.setInteractionFrames(held: hf, heldDurs: hd, poked: pf, pokedDurs: pd)
+
         let src = frameCache.sheet.map { "sheet (\($0.rects.count) frames)" } ?? "discrete PNGs"
         FileHandle.standardError.write(Data("familiar-overlay: pet=\(pet) frames=\(dir?.path ?? "none") source=\(src)\n".utf8))
+    }
+
+    // Resolve frames for an interaction state, falling back to an agent state
+    // that the bundle is guaranteed to have so dragging/poking never breaks.
+    private func interactionFrames(_ state: String, fallback: String) -> ([CGImage], [Double]) {
+        guard let spec = anim.spec(for: state) ?? anim.spec(for: fallback) else { return ([], []) }
+        return (frameCache.cgFrames(spec.frames), spec.durations)
     }
 
     private func applySize(_ size: Double) {

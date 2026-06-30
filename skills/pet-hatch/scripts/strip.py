@@ -71,6 +71,16 @@ STATES: dict[str, dict] = {
     "sleeping": {"frames": 4, "frameMs": 340, "purpose": "peaceful sleeping loop", "req": [
         "The fox stays curled up asleep in place; only slow breathing — the body rises and falls a little.",
         "Eyes stay closed; no travel."]},
+    # Interaction states: played by the renderer when the human grabs or pokes
+    # the pet (never part of the agent state vocabulary). Authored like the rest.
+    "held": {"frames": 4, "frameMs": 200, "purpose": "being gently picked up and dangling", "req": [
+        "The pet is lifted off the ground and held up: body and limbs hang and sway a little, looking up, mildly surprised but content.",
+        "Keep the pet centered in each slot — the dangle is a small side-to-side sway, no travel off-frame.",
+        "No hand or external props — just the pet, same character, palette, and outline as the reference."]},
+    "poked": {"frames": 5, "frameMs": 110, "purpose": "a quick startled reaction to a poke, then settle", "req": [
+        "The pet reacts with a brief surprised wobble: a small squash-and-stretch and a startled face, settling back to rest by the last frame.",
+        "Stays planted and centered; the reaction happens in place, no travel.",
+        "The first and last frames return near the resting pose so it settles cleanly."]},
 }
 
 PROMPT = """Create a single horizontal sprite strip of the SAME pet character shown in the attached reference image, in the "{state}" state.

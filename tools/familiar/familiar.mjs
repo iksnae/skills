@@ -413,7 +413,9 @@ const PIXEL_STYLE =
   'simple readable face, tiny limbs, no fine detail that disappears when small. Avoid polished ' +
   'illustration, painterly rendering, 3D, soft gradients, realistic texture, anti-aliased high-detail edges.';
 
-const PET_STATES = ['idle', 'thinking', 'working', 'reviewing', 'awaiting-human', 'milestone', 'failed', 'sleeping'];
+// Agent states plus the two interaction states (held/poked) the overlay plays
+// when the human grabs or pokes the pet — generated so hatched pets have them.
+const PET_STATES = ['idle', 'thinking', 'working', 'reviewing', 'awaiting-human', 'milestone', 'failed', 'sleeping', 'held', 'poked'];
 
 function slug(s) {
   return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'pet';
