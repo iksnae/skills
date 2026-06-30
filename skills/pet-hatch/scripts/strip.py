@@ -132,31 +132,74 @@ def non_green_bbox(rgb: np.ndarray):
     return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
 
 
-def slice_strip(strip: Image.Image, frames: int) -> list[Image.Image]:
-    """Split the strip into N equal columns and cut every frame with ONE shared
-    crop window, scale, and paste offset — so cropping can never shift the body
-    between frames. (Per-frame bbox-centering, as Codex's fit_to_cell does,
-    slides the body whenever the silhouette extent changes — a tail flick or a
-    raised paw moves the bbox center; in a large cell that re-centering reads as
-    horizontal sliding. A shared window preserves exactly where the model drew
-    each frame, which the coherent strip keeps planted.)
+def green_mask(rgb: np.ndarray) -> np.ndarray:
+    r, g, b = rgb[..., 0].astype(int), rgb[..., 1].astype(int), rgb[..., 2].astype(int)
+    return ~((g > 90) & (g > r + 40) & (g > b + 40))     # True where fox (non-green)
 
-    The shared window is the UNION of every frame's non-green bbox in slot-local
-    coordinates, so it contains the fox in every frame while trimming the common
-    margin identically."""
+
+def phase_shift(ref: np.ndarray, m: np.ndarray) -> tuple[int, int]:
+    """Integer (dy, dx) translation that best aligns silhouette mask `m` onto
+    `ref`, via FFT phase correlation. Weighted by silhouette area, so it locks
+    the dominant body mass and ignores small moving parts (ears, paws, tail)."""
+    if ref.sum() == 0 or m.sum() == 0:
+        return 0, 0
+    F, G = np.fft.fft2(ref), np.fft.fft2(m)
+    R = F * np.conj(G)
+    R /= np.abs(R) + 1e-9
+    c = np.fft.ifft2(R).real
+    dy, dx = np.unravel_index(int(np.argmax(c)), c.shape)
+    h, w = ref.shape
+    if dy > h // 2:
+        dy -= h
+    if dx > w // 2:
+        dx -= w
+    return int(dy), int(dx)
+
+
+def shift_green(rgb: np.ndarray, dy: int, dx: int) -> np.ndarray:
+    """Translate the slot by (dy, dx), filling exposed edges with chroma green."""
+    if dy == 0 and dx == 0:
+        return rgb
+    h, w = rgb.shape[:2]
+    out = np.empty_like(rgb)
+    out[:] = GREEN
+    sy0, sy1 = max(0, -dy), min(h, h - dy)
+    sx0, sx1 = max(0, -dx), min(w, w - dx)
+    out[sy0 + dy:sy1 + dy, sx0 + dx:sx1 + dx] = rgb[sy0:sy1, sx0:sx1]
+    return out
+
+
+def slice_strip(strip: Image.Image, frames: int) -> list[Image.Image]:
+    """Split the strip into N equal columns, then REGISTER every frame to the
+    first by translation (phase correlation on the silhouette) so the body is
+    locked across frames — the fix for asymmetric characters, where bbox-center
+    (Codex's fit_to_cell) and a fixed window both fail: a big tail or a raised
+    paw shifts the bbox, and the model itself draws the character at slightly
+    different x in each slot. Registration aligns the dominant mass (the body);
+    ears/paws/tail still move locally. Then crop all frames with ONE shared
+    window/scale/offset, so nothing the slicer does can reintroduce a shift."""
     strip = strip.convert("RGB").resize((OUT_W, OUT_H), Image.LANCZOS)
     arr = np.asarray(strip)
-    # Inset each slot to drop any thin frame-divider line the model draws at a
-    # slot boundary (it survives as a dark sliver otherwise — not green, so the
-    # renderer's chroma key won't remove it). Safe padding keeps the fox clear.
+    # Inset each slot to drop any thin frame-divider sliver at a slot boundary.
     mx = max(10, round(OUT_W / frames * 0.05))
     my = 12
-    slots = [arr[my:OUT_H - my, round(i * OUT_W / frames) + mx: round((i + 1) * OUT_W / frames) - mx, :]
-             for i in range(frames)]
+    raw = [arr[my:OUT_H - my, round(i * OUT_W / frames) + mx: round((i + 1) * OUT_W / frames) - mx, :]
+           for i in range(frames)]
+    # Standardize to a common shape so masks/FFTs line up.
+    sh = min(s.shape[0] for s in raw)
+    sw = min(s.shape[1] for s in raw)
+    slots = [s[:sh, :sw, :] for s in raw]
 
-    # Shared crop window = union of every frame's non-green bbox (slot-local).
+    # Register every slot onto the first via silhouette phase correlation.
+    ref = green_mask(slots[0]).astype(float)
+    aligned = [slots[0]]
+    for s in slots[1:]:
+        dy, dx = phase_shift(ref, green_mask(s).astype(float))
+        aligned.append(shift_green(s, dy, dx))
+
+    # Shared crop window = union of the aligned silhouettes' bboxes.
     union = None
-    for s in slots:
+    for s in aligned:
         bb = non_green_bbox(s)
         if bb is None:
             continue
@@ -174,7 +217,7 @@ def slice_strip(strip: Image.Image, frames: int) -> list[Image.Image]:
     off = ((CELL - w) // 2, (CELL - h) // 2)            # one offset for every frame
 
     out: list[Image.Image] = []
-    for s in slots:
+    for s in aligned:
         crop = Image.fromarray(s[t:b, l:r, :])           # identical window every frame
         sprite = crop.resize((w, h), Image.LANCZOS)
         cell = Image.new("RGB", (CELL, CELL), GREEN)
