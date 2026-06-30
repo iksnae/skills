@@ -200,6 +200,14 @@ func activeSize() -> Double {
     return ProcessInfo.processInfo.environment["FAMILIAR_SIZE"].flatMap { Double($0) } ?? 150
 }
 
+// A global multiplier on every frame duration: >1 slows all motion (longer
+// holds, calmer), applied uniformly so hatched and imported pets read alike.
+// Default leans calm — authored durations alone play overactive next to Codex.
+func activeAnimScale() -> Double {
+    if let s = (readConfig()["animScale"] as? NSNumber)?.doubleValue { return min(3.0, max(0.5, s)) }
+    return 1.5
+}
+
 // Resolve a pet bundle's sprite frames dir from its pet.json renderer `dir`.
 func petFramesDir(_ pet: String) -> URL? {
     guard let bundle = petBundle(pet) else { return nil }
@@ -388,6 +396,7 @@ final class PetView: NSView {
 
     private var interaction: String? = nil       // nil | "held" | "poked"
     private var interactionUntil: Date? = nil     // nil while held; a deadline for poke/settle
+    private var animScale: Double = 1.5           // global calm multiplier on durations
 
     private var phase: CGFloat = 0
     private var attention = "none"
@@ -537,9 +546,15 @@ final class PetView: NSView {
         let src = interaction ?? "agent"
         if src != activeSource { activeSource = src; lastFrameIndex = -1; phase = 0 }
         frames = f
-        durations = d
-        totalMs = max(1, d.reduce(0, +))
+        durations = d.map { max(40, $0 * animScale) }   // global calm factor
+        totalMs = max(1, durations.reduce(0, +))
         usingFrames = true
+    }
+
+    func setAnimScale(_ s: Double) {
+        guard abs(s - animScale) > 0.001 else { return }
+        animScale = s
+        applyActive()
     }
 
     func beginHeld() { interaction = "held"; interactionUntil = nil; applyActive() }
@@ -691,14 +706,25 @@ struct SettingsView: View {
 
 struct GeneralTab: View {
     @State private var size: Double = activeSize()
+    @State private var calm: Double = activeAnimScale()
     var body: some View {
         Form {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Pet size: \(Int(size)) px").font(.subheadline)
-                Slider(value: $size, in: 90...300, step: 2)
-                    .onChange(of: size) { _, v in writeConfig(["size": v]) }
-                Text("Drag the pet anywhere on screen to reposition it.")
-                    .font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Pet size: \(Int(size)) px").font(.subheadline)
+                    Slider(value: $size, in: 90...300, step: 2)
+                        .onChange(of: size) { _, v in writeConfig(["size": v]) }
+                    Text("Drag the pet anywhere on screen to reposition it.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Animation calm: \(String(format: "%.2f×", calm))").font(.subheadline)
+                    Slider(value: $calm, in: 0.7...2.5, step: 0.05)
+                        .onChange(of: calm) { _, v in writeConfig(["animScale": v]) }
+                    Text("Higher = slower, calmer motion (longer holds). Lower = livelier.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
             .padding()
         }
@@ -914,6 +940,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var current = ""
     private var loadedPet = ""
     private var loadedSize: Double = 0
+    private var loadedScale: Double = 1.5
     private var settings: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -957,6 +984,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         bubblePanel.contentView = bubbleView
         bubblePanel.alphaValue = 0
 
+        loadedScale = activeAnimScale()
+        petView.setAnimScale(loadedScale)
         loadPet(activePet())
         update()
         Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.tick() }
@@ -1008,6 +1037,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if pet != loadedPet { loadPet(pet) }
         let size = activeSize()
         if abs(size - loadedSize) > 0.5 { applySize(size) }
+        let scale = activeAnimScale()
+        if abs(scale - loadedScale) > 0.001 { loadedScale = scale; petView.setAnimScale(scale) }
         update()
     }
 
