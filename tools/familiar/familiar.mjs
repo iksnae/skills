@@ -23,6 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { spawn, spawnSync } from 'node:child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.FAMILIAR_HOME || path.join(os.homedir(), '.familiar');
@@ -303,6 +304,79 @@ function runDemo() {
   setTimeout(() => process.exit(0), t + 800);
 }
 
+// --- native overlay renderer: launch/stop the SwiftUI desktop pet ---
+const OVERLAY_DIR = path.join(__dirname, 'overlay');
+const PETS_DIR = path.join(__dirname, 'pets');
+
+function overlayBinary() {
+  for (const cfg of ['release', 'debug']) {
+    const p = path.join(OVERLAY_DIR, '.build', cfg, 'FamiliarOverlay');
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+function buildOverlay() {
+  // Prepend the system toolchain so /usr/bin/ld is used — a conda `ld` on PATH
+  // shadows it and fails linking with `-no_warn_duplicate_libraries`.
+  const env = { ...process.env, PATH: `/usr/bin:/usr/sbin:/bin:/sbin:${process.env.PATH || ''}` };
+  process.stdout.write('familiar overlay: building (first run, ~minute)...\n');
+  const r = spawnSync('swift', ['build', '-c', 'release'], { cwd: OVERLAY_DIR, env, stdio: 'inherit' });
+  return r.status === 0 ? overlayBinary() : null;
+}
+
+function overlayPids() {
+  const r = spawnSync('pgrep', ['-f', 'FamiliarOverlay'], { encoding: 'utf8' });
+  return (r.stdout || '').split('\n').map((s) => s.trim()).filter(Boolean);
+}
+
+function petHasSprites(id) {
+  const man = loadManifest(id);
+  return !!(man && man.renderers && Object.values(man.renderers).some((r) => r && r.dir));
+}
+
+function launchOverlay(args) {
+  if (args.includes('--stop')) {
+    const pids = overlayPids();
+    if (!pids.length) { process.stdout.write('familiar overlay: not running\n'); return; }
+    spawnSync('pkill', ['-f', 'FamiliarOverlay']);
+    process.stdout.write(`familiar overlay: stopped (pid ${pids.join(', ')})\n`);
+    return;
+  }
+  const restart = args.includes('--restart');
+  const running = overlayPids();
+  if (running.length && !restart) {
+    process.stdout.write(`familiar overlay: already running (pid ${running.join(', ')}); --restart to relaunch, --stop to quit\n`);
+    return;
+  }
+  if (running.length) spawnSync('pkill', ['-f', 'FamiliarOverlay']);
+
+  // pet: explicit arg, else the active pet — but fall back to one with a sprite
+  // bundle, since the overlay is graphical (ASCII-only pets render a placeholder).
+  let pet = args.find((a) => !a.startsWith('--')) || activePetId();
+  if (!petHasSprites(pet)) {
+    const candidate = ['fox', ...listPets()].find(petHasSprites);
+    if (candidate && candidate !== pet) {
+      process.stdout.write(`familiar overlay: '${pet}' has no sprite bundle; using '${candidate}'\n`);
+      pet = candidate;
+    }
+  }
+
+  const bin = overlayBinary() || buildOverlay();
+  if (!bin) {
+    process.stderr.write(`familiar overlay: no binary and build failed.\n  build it: (cd ${OVERLAY_DIR} && swift build -c release)\n`);
+    process.exit(1);
+  }
+
+  ensureHome();
+  const logPath = path.join(HOME, 'overlay.log');
+  const out = fs.openSync(logPath, 'a');
+  const env = { ...process.env, FAMILIAR_PET: pet, FAMILIAR_PETS_DIR: PETS_DIR, FAMILIAR_HOME: HOME };
+  const child = spawn(bin, [], { detached: true, stdio: ['ignore', out, out], env });
+  child.unref();
+  process.stdout.write(`familiar overlay: launched '${pet}' (pid ${child.pid})\n  log: ${logPath}\n`);
+}
+
 function printHelp() {
   process.stdout.write(`familiar — a lean ambient-pet prototype (front-end for ambisphere)
 
@@ -313,6 +387,7 @@ usage:
   familiar statusline                       print a one-line pet (for Claude Code statusLine)
   familiar install claude-code [--write]    wire lifecycle hooks (+statusline) into settings.json
   familiar pets                             list available pet bundles
+  familiar overlay [pet] [--restart|--stop] launch the native desktop pet (auto-builds first run)
   familiar demo                             emit a scripted session (watch in another pane)
 
 canonical events (semantic): session.start prompt.submit think tool.start tool.end
@@ -350,6 +425,7 @@ try {
       break;
     }
     case 'pets': { process.stdout.write(listPets().join('\n') + '\n'); break; }
+    case 'overlay': { launchOverlay(rest); break; }
     case 'demo': { runDemo(); break; }
     case 'help': case undefined: { printHelp(); break; }
     default: { process.stderr.write(`unknown command: ${cmd}\n`); printHelp(); process.exit(2); }
