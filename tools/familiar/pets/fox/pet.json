@@ -1,0 +1,26 @@
+{
+  "id": "fox",
+  "displayName": "Fox",
+  "description": "A small amber fox familiar — the default animated pet.",
+  "states": [
+    "idle",
+    "thinking",
+    "working",
+    "awaiting-human",
+    "reviewing",
+    "succeeded",
+    "failed",
+    "errored",
+    "rate-limited",
+    "milestone",
+    "sleeping"
+  ],
+  "renderers": {
+    "ascii-green-sprites": {
+      "dir": "frames_green",
+      "manifest": "anim.json",
+      "chromaKey": "#00b140",
+      "note": "per-state looping frames on a green screen; renderer keys it transparent"
+    }
+  }
+}

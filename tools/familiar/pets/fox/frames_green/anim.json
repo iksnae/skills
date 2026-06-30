@@ -1,0 +1,87 @@
+{
+  "frameMs": 160,
+  "states": {
+    "idle": {
+      "frames": [
+        "idle.png",
+        "idle.png",
+        "idle.png",
+        "idle.png",
+        "idle.png",
+        "idle.m0.png"
+      ],
+      "frameMs": 160,
+      "mode": "loop"
+    },
+    "sleeping": {
+      "frames": [
+        "sleeping.png",
+        "sleeping.png",
+        "sleeping.png",
+        "sleeping.m0.png"
+      ],
+      "frameMs": 340,
+      "mode": "loop"
+    },
+    "awaiting-human": {
+      "frames": [
+        "awaiting-human.png",
+        "awaiting-human.png",
+        "awaiting-human.png",
+        "awaiting-human.m0.png"
+      ],
+      "frameMs": 220,
+      "mode": "loop"
+    },
+    "failed": {
+      "frames": [
+        "failed.png",
+        "failed.png",
+        "failed.png",
+        "failed.m0.png"
+      ],
+      "frameMs": 260,
+      "mode": "loop"
+    },
+    "thinking": {
+      "frames": [
+        "thinking.png",
+        "thinking.m0.png",
+        "thinking.m1.png",
+        "thinking.m0.png"
+      ],
+      "frameMs": 240,
+      "mode": "loop"
+    },
+    "working": {
+      "frames": [
+        "working.png",
+        "working.m0.png",
+        "working.m1.png",
+        "working.m0.png"
+      ],
+      "frameMs": 130,
+      "mode": "loop"
+    },
+    "reviewing": {
+      "frames": [
+        "working.png",
+        "working.m0.png",
+        "working.m1.png",
+        "working.m0.png"
+      ],
+      "frameMs": 300,
+      "mode": "loop"
+    },
+    "milestone": {
+      "frames": [
+        "milestone.png",
+        "milestone.m0.png",
+        "milestone.m1.png",
+        "milestone.m0.png"
+      ],
+      "frameMs": 140,
+      "mode": "loop"
+    }
+  }
+}
