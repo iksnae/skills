@@ -13,10 +13,7 @@
     "familiar.mjs",
     "overlay/Package.swift",
     "overlay/Sources/**",
-    "pets/**",
-    "!pets/**/base.png",
-    "!pets/**/base.json",
-    "!pets/**/*.strip.png",
+    "pets/default/**",
     "README.md"
   ],
   "keywords": [
