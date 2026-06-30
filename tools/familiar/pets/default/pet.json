@@ -1,0 +1,18 @@
+{
+  "id": "default",
+  "displayName": "Pip",
+  "description": "A small terminal familiar — the default ambient pet.",
+  "states": [
+    "idle",
+    "thinking",
+    "working",
+    "awaiting-human",
+    "reviewing",
+    "succeeded",
+    "failed",
+    "errored",
+    "rate-limited",
+    "milestone",
+    "sleeping"
+  ]
+}
