@@ -222,6 +222,40 @@
         280,
         640
       ]
+    },
+    "held": {
+      "frames": [
+        "held.f0.png",
+        "held.f1.png",
+        "held.f2.png",
+        "held.f3.png"
+      ],
+      "frameMs": 200,
+      "durations": [
+        360,
+        200,
+        200,
+        400
+      ],
+      "mode": "loop"
+    },
+    "poked": {
+      "frames": [
+        "poked.f0.png",
+        "poked.f1.png",
+        "poked.f2.png",
+        "poked.f3.png",
+        "poked.f4.png"
+      ],
+      "frameMs": 110,
+      "durations": [
+        198,
+        110,
+        110,
+        110,
+        220
+      ],
+      "mode": "loop"
     }
   }
 }
