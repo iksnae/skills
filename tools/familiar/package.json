@@ -1,7 +1,8 @@
 {
   "name": "@iksnae/familiar",
   "version": "0.1.0",
-  "description": "A universal, cross-harness ambient desktop pet for AI coding agents. Semantic events → a pure reducer → renderer-agnostic pets (native macOS overlay or terminal).",
+  "private": true,
+  "description": "A universal, cross-harness ambient desktop pet for AI coding agents. Semantic events → a pure reducer → renderer-agnostic pets (native macOS overlay or terminal). Distributed via the iksnae/skills repo, not the npm registry.",
   "type": "module",
   "bin": {
     "familiar": "familiar.mjs"

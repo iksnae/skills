@@ -31,17 +31,21 @@ harness, and reason about its model so changes stay faithful.
 
 ## Run it
 
-macOS desktop overlay (builds once on first run, ~1 min, needs Xcode CLT):
+From a clone of this repo. macOS desktop overlay (builds once on first run,
+~1 min, needs Xcode CLT):
 
 ```sh
-npx @iksnae/familiar overlay        # or: node tools/familiar/familiar.mjs overlay
+node tools/familiar/familiar.mjs overlay
 ```
 
 Anywhere Node runs — the terminal pet (the cross-platform path):
 
 ```sh
-npx @iksnae/familiar watch
+node tools/familiar/familiar.mjs watch
 ```
+
+For a short `familiar` command, install globally from the local path (no
+registry): `npm install -g ./tools/familiar`.
 
 ## Wire it to the agent
 
@@ -80,5 +84,5 @@ Pet bundles are swappable renderer assets (a sprite sheet + `anim.json`) plus a
 manifest. `familiar pets` lists them; `familiar hatch --name N --prompt "…"`
 generates a new one; `familiar import-codex --path …` imports a Codex atlas.
 Pet authoring shells out to the `pet-hatch` + `image-generate` skills and an
-image API key — available from a clone of this repo, not the lean npm package,
-which ships only the always-works default pet.
+image API key (both present in this repo). The default pet always works without
+them; sprite pets are generated per-user.

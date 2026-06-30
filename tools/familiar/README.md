@@ -20,18 +20,27 @@ looks like.
 
 ## Quick start
 
+familiar ships from this repo (not the npm registry). Clone it and run the CLI:
+
 ```sh
+git clone https://github.com/iksnae/skills && cd skills
+
 # macOS — the floating desktop pet (builds once on first run, ~1 min)
-npx @iksnae/familiar overlay
+node tools/familiar/familiar.mjs overlay
 
 # anywhere Node runs — the terminal pet
-npx @iksnae/familiar watch
+node tools/familiar/familiar.mjs watch
 
 # wire it to your agent so it reacts to real work, then restart the agent
-npx @iksnae/familiar install claude-code --write
+node tools/familiar/familiar.mjs install claude-code --write
 ```
 
-Or install once: `npm i -g @iksnae/familiar`, then run `familiar …`.
+Prefer a short `familiar` command? Install it globally from the local path —
+no registry, no login:
+
+```sh
+npm install -g ./tools/familiar    # then: familiar overlay
+```
 
 ## Renderer tiers
 
@@ -89,8 +98,8 @@ familiar import-codex --path ~/.codex/pets/fox         # import a Codex atlas *
 ```
 
 \* Pet authoring shells out to the `pet-hatch` + `image-generate` skills and an
-image API key — available when you run from a clone of `iksnae/skills`, not from
-the lean npm package. The runtime (overlay/watch/install/emit) is standalone.
+image API key — both present in this repo. The runtime (overlay/watch/install/
+emit) is standalone, and the default pet always works without them.
 
 Overlay settings: a **Preferences** window (⌘,) manages the active pet, size,
 animation calm, and lets you create or import pets with live progress.
@@ -100,8 +109,8 @@ animation calm, and lets you create or import pets with live progress.
 - **Node ≥ 18** (the CLI is zero-dependency).
 - **macOS overlay**: the Xcode Command Line Tools (`xcode-select --install`) for
   the one-time `swift build`. The binary is cached under `~/.familiar/overlay`,
-  so a read-only / `npx` install still builds and runs. No code signing needed —
-  it's built locally.
+  so it builds and runs the same whether launched from the clone or a global
+  install. No code signing needed — it's built locally.
 
 ## How it stays honest to ambisphere
 

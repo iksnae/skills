@@ -562,7 +562,7 @@ function runDemo() {
 const OVERLAY_DIR = path.join(__dirname, 'overlay');
 const PETS_DIR = path.join(__dirname, 'pets');
 // A user-writable build cache, so the overlay builds on first run even when the
-// CLI is installed read-only (npm -g / npx). Dev builds in OVERLAY_DIR win.
+// CLI is installed read-only (e.g. a global install). Dev builds in OVERLAY_DIR win.
 const BUILD_HOME = path.join(HOME, 'overlay');
 let PKG_VERSION = '0';
 try { PKG_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || '0'; }
