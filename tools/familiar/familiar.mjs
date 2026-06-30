@@ -303,6 +303,57 @@ function installClaudeCode(write) {
   process.stdout.write('restart Claude Code for the hooks to take effect.\n');
 }
 
+// --- git adapter: a second, structurally-different harness ---
+//
+// Proof that the semantic contract isn't Claude-Code-specific: git hooks are a
+// totally separate event SOURCE (the VCS, driven by ANY tool) feeding the SAME
+// log -> reduce -> render pipeline. post-commit/pre-push call `familiar
+// git-event`, which emits the milestone events + speaks (the commit subject).
+function installGit(args, write) {
+  const repoArg = args.find((a) => !a.startsWith('--'));
+  const repo = repoArg ? path.resolve(repoArg) : process.cwd();
+  const r = spawnSync('git', ['-C', repo, 'rev-parse', '--git-path', 'hooks'], { encoding: 'utf8' });
+  if (r.status !== 0) { process.stderr.write(`familiar install git: not a git repository: ${repo}\n`); process.exit(2); }
+  const hooksDir = path.resolve(repo, (r.stdout || '').trim());
+  const self = path.join(__dirname, 'familiar.mjs');
+  const SENTINEL = '# familiar-hook';
+  const MAP = { 'post-commit': 'commit', 'pre-push': 'push' };
+
+  fs.mkdirSync(hooksDir, { recursive: true });
+  const plan = [];
+  for (const [hook, kind] of Object.entries(MAP)) {
+    const p = path.join(hooksDir, hook);
+    let existing = '';
+    try { existing = fs.readFileSync(p, 'utf8'); } catch { /* none yet */ }
+    if (existing.includes(SENTINEL)) { plan.push(`${hook}: already wired`); continue; }
+    plan.push(`${hook} -> familiar emit ${kind}`);
+    if (!write) continue;
+    // `|| true` so a missing node never blocks a commit/push; quiet, fast.
+    const line = `node ${self} git-event ${kind} >/dev/null 2>&1 || true  ${SENTINEL}`;
+    const content = existing.trim() ? existing.replace(/\s*$/, '\n') + line + '\n'
+                                    : `#!/bin/sh\n${line}\n`;
+    fs.writeFileSync(p, content);
+    fs.chmodSync(p, 0o755);
+  }
+  if (!write) {
+    process.stdout.write(`(dry run) would wire git hooks in ${hooksDir}:\n  ${plan.join('\n  ')}\n  re-run with --write to apply\n`);
+    return;
+  }
+  process.stdout.write(`familiar: wired git hooks in ${hooksDir}:\n  ${plan.join('\n  ')}\ncommit or push from anywhere — the pet reacts.\n`);
+}
+
+// install dispatch: the adapter registry. New harness = one more case.
+function install(target, args) {
+  const write = args.includes('--write');
+  switch (target) {
+    case 'claude-code': return installClaudeCode(write);
+    case 'git': return installGit(args, write);
+    default:
+      process.stderr.write('usage: familiar install <claude-code|git> [path] [--write]\n');
+      process.exit(2);
+  }
+}
+
 // --- live activity adapter: derive flash events + speech from a hook payload ---
 //
 // A host hook calls `familiar hook <canonical-event>` and pipes its JSON payload
@@ -371,6 +422,26 @@ function runHook(rest) {
   try { d = deriveFromHook(canon, p) || {}; } catch { d = {}; }
   if (d.event) emit(d.event);
   if (d.message) emit('message', d.message);
+  process.exit(0);
+}
+
+// git hook entry: emit the milestone event + speak (the commit subject).
+function gitEvent(rest) {
+  const kind = rest[0];
+  if (kind === 'commit') {
+    let subject = '';
+    try {
+      const r = spawnSync('git', ['log', '-1', '--pretty=%s'], { encoding: 'utf8' });
+      if (r.status === 0) subject = (r.stdout || '').trim();
+    } catch { /* not fatal */ }
+    emit('commit');
+    emit('message', subject ? clip(`Committed: ${subject}`, 120) : 'Committed ✓');
+  } else if (kind === 'push') {
+    emit('push');
+    emit('message', 'Pushed it up ✓');
+  } else if (kind) {
+    emit(kind);
+  }
   process.exit(0);
 }
 
@@ -637,6 +708,7 @@ usage:
   familiar watch                            animate the pet for the current state (Ctrl-C quits)
   familiar statusline                       print a one-line pet (for Claude Code statusLine)
   familiar install claude-code [--write]    wire lifecycle hooks (+statusline) into settings.json
+  familiar install git [path] [--write]     wire git hooks (post-commit, pre-push) in a repo
   familiar hook <event>                     host-hook entry: emit <event> + derived speech/flash (stdin payload)
   familiar pets                             list available pet bundles
   familiar overlay [pet] [--restart|--stop] launch the native desktop pet (auto-builds first run)
@@ -674,11 +746,8 @@ try {
     case 'reduce': { reduce(); process.stdout.write('ok\n'); break; }
     case 'watch': { watch(activePetId()); break; } // does not return
     case 'statusline': { statusline(activePetId()); break; }
-    case 'install': {
-      if (rest[0] === 'claude-code') installClaudeCode(rest.includes('--write'));
-      else { process.stderr.write('usage: familiar install claude-code [--write]\n'); process.exit(2); }
-      break;
-    }
+    case 'install': { install(rest[0], rest.slice(1)); break; }
+    case 'git-event': { gitEvent(rest); break; }
     case 'pets': { process.stdout.write(listPets().join('\n') + '\n'); break; }
     case 'overlay': { launchOverlay(rest); break; }
     case 'hatch': { hatchPet(rest); break; }
@@ -688,7 +757,7 @@ try {
     default: { process.stderr.write(`unknown command: ${cmd}\n`); printHelp(); process.exit(2); }
   }
 } catch (e) {
-  if (cmd === 'emit' || cmd === 'hook') process.exit(0); // never block a host hook
+  if (cmd === 'emit' || cmd === 'hook' || cmd === 'git-event') process.exit(0); // never block a host hook
   process.stderr.write(String((e && e.stack) || e) + '\n');
   process.exit(1);
 }
