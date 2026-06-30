@@ -27,9 +27,13 @@ static still. Identity stays locked because each in-between is generated
      ▼
 <state>.m0.png, <state>.m1.png  (in-between frames; identity + bg preserved)
      ▼
-anim.json   { states: { <state>: { frames:[...], frameMs, mode } } }
+anim.json   { states: { <state>: { frames:[...], frameMs, mode } } }   ← semantic truth
+     │  pack.py  (downscale + grid-pack every referenced frame)
      ▼
-renderer plays the loop (e.g. tools/familiar/overlay)
+sheet.png + sheet.json  (one decode; name → {x,y,w,h})   ← derived renderer bundle
+     ▼
+renderer plays the loop (e.g. tools/familiar/overlay) — crops the sheet if
+present, else loads the discrete PNGs; anim.json stays the source of truth
 ```
 
 ## Grounding and divergence
@@ -62,6 +66,10 @@ python3 skills/pet-hatch/scripts/hatch.py \
 # subset, or just rewrite the manifest without generating:
 python3 skills/pet-hatch/scripts/hatch.py --frames-dir <dir> --states working,milestone
 python3 skills/pet-hatch/scripts/hatch.py --frames-dir <dir> --anim-only
+
+# pack the discrete frames into a sprite sheet + atlas (re-run after hatching):
+python3 skills/pet-hatch/scripts/pack.py --frames-dir <dir>          # 256px tiles
+python3 skills/pet-hatch/scripts/pack.py --frames-dir <dir> --tile 512
 ```
 
 Per-state frame counts and motions live in `STATES` in `scripts/hatch.py`
@@ -73,11 +81,15 @@ skipped unless `--force`, so an interrupted run resumes cleanly.
 
 - `<state>.m{0,1}.png` in-between frames (flat green; renderer keys transparent).
 - `anim.json` merged in place (preserves states it didn't regenerate).
+- `sheet.png` + `sheet.json` (after `pack.py`): a packed atlas the renderer
+  crops by frame name. **`anim.json` stays the source of truth** — the sheet is
+  a *derived*, swappable bundle (a single decode, portable / Codex-exportable).
 
 ## Notes
 
 - `images.edit` is slower than text generation (~1–2 min/frame). Run larger
   hatches in the background; the threadpool (`--workers`) overlaps calls.
-- A packed spritesheet atlas (single PNG + frame rects) for Codex-export /
-  portability is a downstream step; the renderer here plays individual frames
-  named by `anim.json`.
+- Re-run `pack.py` after any `hatch.py` change so the sheet matches the frames.
+  Tiles default to 256px (crisp at the overlay's ~180px display); bump `--tile`
+  if you'll show the pet larger. The discrete PNGs remain the authoring source
+  and the renderer's fallback, so a missing/stale sheet degrades gracefully.

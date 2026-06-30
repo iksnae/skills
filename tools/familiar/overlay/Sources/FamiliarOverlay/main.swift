@@ -147,16 +147,13 @@ func petFramesDirectory(env: [String: String]) -> URL? {
 }
 
 // green-screen chroma key -> transparent (a no-op if the frame already has alpha)
-func keyGreen(_ image: NSImage) -> NSImage {
-    guard let tiff = image.tiffRepresentation,
-          let rep = NSBitmapImageRep(data: tiff),
-          let cg = rep.cgImage else { return image }
+func keyGreenCG(_ cg: CGImage) -> CGImage {
     let w = cg.width, h = cg.height
     var buf = [UInt8](repeating: 0, count: w * h * 4)
     let cs = CGColorSpaceCreateDeviceRGB()
     guard let ctx = CGContext(data: &buf, width: w, height: h, bitsPerComponent: 8,
                               bytesPerRow: w * 4, space: cs,
-                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return image }
+                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return cg }
     ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
     var i = 0
     while i < buf.count {
@@ -166,27 +163,57 @@ func keyGreen(_ image: NSImage) -> NSImage {
         }
         i += 4
     }
-    guard let out = ctx.makeImage() else { return image }
-    return NSImage(cgImage: out, size: NSSize(width: w, height: h))
+    return ctx.makeImage() ?? cg
+}
+
+func cgImage(of ns: NSImage) -> CGImage? {
+    var rect = NSRect(origin: .zero, size: ns.size)
+    return ns.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+}
+
+// An optional packed sprite sheet: one decode, frames cropped by name. Derived
+// from the discrete frames (sheet.json maps name -> pixel rect, top-left origin
+// matching the packer). Present => the renderer crops the sheet; absent => it
+// loads the discrete <name>.png files. Either way anim.json stays the truth.
+struct Sheet { let image: CGImage; let rects: [String: CGRect] }
+
+func loadSheet(_ dir: URL?) -> Sheet? {
+    guard let dir = dir,
+          let data = try? Data(contentsOf: dir.appendingPathComponent("sheet.json")),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let frames = obj["frames"] as? [String: Any],
+          let ns = NSImage(contentsOf: dir.appendingPathComponent("sheet.png")),
+          let cg = cgImage(of: ns) else { return nil }
+    var rects: [String: CGRect] = [:]
+    for (name, v) in frames {
+        guard let e = v as? [String: Any],
+              let x = e["x"] as? Double, let y = e["y"] as? Double,
+              let w = e["w"] as? Double, let h = e["h"] as? Double else { continue }
+        rects[name] = CGRect(x: x, y: y, width: w, height: h)
+    }
+    return rects.isEmpty ? nil : Sheet(image: cg, rects: rects)
 }
 
 final class FrameCache {
     private var cache: [String: CGImage] = [:]
     let dir: URL?
-    init(_ dir: URL?) { self.dir = dir }
+    let sheet: Sheet?
+    init(_ dir: URL?) { self.dir = dir; self.sheet = loadSheet(dir) }
 
     func cgFrames(_ files: [String]) -> [CGImage] {
-        guard let dir = dir else { return [] }
         var out: [CGImage] = []
         for f in files {
             if let c = cache[f] { out.append(c); continue }
-            let url = dir.appendingPathComponent(f)
-            guard let raw = NSImage(contentsOf: url) else { continue }
-            let keyed = keyGreen(raw)
-            var rect = NSRect(origin: .zero, size: keyed.size)
-            guard let cg = keyed.cgImage(forProposedRect: &rect, context: nil, hints: nil) else { continue }
-            cache[f] = cg
-            out.append(cg)
+            var raw: CGImage?
+            if let sheet = sheet, let r = sheet.rects[f] {
+                raw = sheet.image.cropping(to: r)        // packed-sheet path
+            } else if let dir = dir, let ns = NSImage(contentsOf: dir.appendingPathComponent(f)) {
+                raw = cgImage(of: ns)                     // discrete-PNG fallback
+            }
+            guard let cg = raw else { continue }
+            let keyed = keyGreenCG(cg)
+            cache[f] = keyed
+            out.append(keyed)
         }
         return out
     }
