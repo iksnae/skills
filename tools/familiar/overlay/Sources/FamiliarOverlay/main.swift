@@ -445,6 +445,7 @@ struct SettingsView: View {
             GeneralTab().tabItem { Label("General", systemImage: "gearshape") }
             PetsTab().tabItem { Label("Pets", systemImage: "pawprint") }
             CreatePetTab().tabItem { Label("Create", systemImage: "wand.and.stars") }
+            ImportTab().tabItem { Label("Import", systemImage: "square.and.arrow.down") }
         }
         .frame(width: 440, height: 360)
     }
@@ -498,14 +499,26 @@ final class Hatcher: ObservableObject {
     @Published var newPet: String?
 
     func hatch(name: String, prompt: String, refs: [URL]) {
+        var sub = ["hatch", "--name", name, "--prompt", prompt]
+        for r in refs { sub.append(contentsOf: ["--reference", r.path]) }
+        run(sub, startMessage: "Hatching “\(name)” — this takes a few minutes…")
+    }
+
+    func importCodex(path: String, generateMissing: Bool) {
+        var sub = ["import-codex", "--path", path]
+        if generateMissing { sub.append("--generate-missing") }
+        run(sub, startMessage: "Importing \(URL(fileURLWithPath: path).lastPathComponent)…"
+            + (generateMissing ? " (generating missing states — a few minutes)" : ""))
+    }
+
+    private func run(_ sub: [String], startMessage: String) {
         guard let cli = ProcessInfo.processInfo.environment["FAMILIAR_CLI"] else {
             lines = ["error: FAMILIAR_CLI not set — relaunch the overlay via `familiar overlay`"]
             return
         }
         running = true; newPet = nil
-        lines = ["Hatching “\(name)” — this takes a few minutes…"]
-        var args = ["node", cli, "hatch", "--name", name, "--prompt", prompt]
-        for r in refs { args.append(contentsOf: ["--reference", r.path]) }
+        lines = [startMessage]
+        let args = ["node", cli] + sub
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         proc.arguments = args
@@ -596,6 +609,56 @@ struct CreatePetTab: View {
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.image]
         if panel.runModal() == .OK { refs = panel.urls }
+    }
+}
+
+struct ImportTab: View {
+    @StateObject private var runner = Hatcher()
+    @State private var src: URL?
+    @State private var generateMissing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Import a Codex pet").font(.headline)
+            HStack {
+                Button("Choose Codex pet…") { pick() }.controlSize(.small)
+                if let s = src { Text(s.lastPathComponent).font(.caption).foregroundStyle(.secondary) }
+            }
+            Text("Pick a Codex pet folder (with spritesheet.webp) or a spritesheet file.")
+                .font(.caption2).foregroundStyle(.secondary)
+            Toggle("Generate missing sequences (e.g. sleeping)", isOn: $generateMissing)
+                .font(.callout)
+            Text("Codex pets don't cover every state. Generating fills the gaps in the pet's own style — slower, uses image generation. Off = missing states reuse idle.")
+                .font(.caption2).foregroundStyle(.secondary)
+            HStack {
+                Button(runner.running ? "Importing…" : "Import") {
+                    if let s = src { runner.importCodex(path: s.path, generateMissing: generateMissing) }
+                }
+                .disabled(runner.running || src == nil)
+                if let id = runner.newPet { Button("Use “\(id)”") { writeConfig(["pet": id]) } }
+            }
+            if !runner.lines.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(runner.lines.indices, id: \.self) { i in
+                            Text(runner.lines[i]).font(.caption2.monospaced())
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 84)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(.gray.opacity(0.2)))
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func pick() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK { src = panel.urls.first }
     }
 }
 

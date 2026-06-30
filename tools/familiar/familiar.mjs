@@ -385,6 +385,7 @@ const REPO_ROOT = path.join(__dirname, '..', '..');
 const GEN_IMG = path.join(REPO_ROOT, 'skills/image-generate/scripts/generate_image.py');
 const STRIP_PY = path.join(REPO_ROOT, 'skills/pet-hatch/scripts/strip.py');
 const PACK_PY = path.join(REPO_ROOT, 'skills/pet-hatch/scripts/pack.py');
+const IMPORT_CODEX = path.join(REPO_ROOT, 'skills/pet-hatch/scripts/import_codex.py');
 const USER_PETS_DIR = path.join(HOME, 'pets');
 
 // The proven stable base style (Codex's house style) — compact pixel-art reads
@@ -463,6 +464,79 @@ function hatchPet(rest) {
   log('done', 'ok', { id, bundle });
 }
 
+// --- import a Codex pet atlas; optionally generate the states it lacks ---
+function importCodex(rest) {
+  const o = { quality: 'high', generateMissing: false };
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
+    if (a === '--path') o.srcPath = rest[++i];
+    else if (a === '--name') o.name = rest[++i];
+    else if (a === '--generate-missing') o.generateMissing = true;
+    else if (a === '--quality') o.quality = rest[++i];
+    else if (a === '--pets-dir') o.petsDir = rest[++i];
+  }
+  const log = (step, status, extra) =>
+    process.stdout.write(JSON.stringify({ step, status, ...(extra || {}) }) + '\n');
+
+  if (!o.srcPath) {
+    process.stderr.write('usage: familiar import-codex --path <codex pet dir or sheet> [--name N] [--generate-missing]\n');
+    process.exit(2);
+  }
+  if (!fs.existsSync(o.srcPath)) { log('error', 'fail', { message: `not found: ${o.srcPath}` }); process.exit(2); }
+
+  // Resolve the spritesheet + name/description from a pet dir or a direct sheet.
+  let sheet = o.srcPath, name = o.name, desc = 'Imported Codex pet.';
+  if (fs.statSync(o.srcPath).isDirectory()) {
+    for (const f of ['spritesheet.webp', 'spritesheet.png']) {
+      if (fs.existsSync(path.join(o.srcPath, f))) { sheet = path.join(o.srcPath, f); break; }
+    }
+    const pj = path.join(o.srcPath, 'pet.json');
+    if (fs.existsSync(pj)) {
+      try { const m = JSON.parse(fs.readFileSync(pj, 'utf8')); name = name || m.displayName || m.id; desc = m.description || desc; } catch { /* */ }
+    }
+  }
+  if (!name) name = path.basename(o.srcPath).replace(/\.(webp|png)$/i, '');
+  const id = slug(name);
+  const bundle = path.join(o.petsDir || USER_PETS_DIR, id);
+  const framesDir = path.join(bundle, 'frames');
+  fs.mkdirSync(framesDir, { recursive: true });
+  const basePng = path.join(bundle, 'base.png');
+
+  // 1. slice + map the Codex rows into our frames + anim.json
+  log('import', 'start');
+  let r = spawnSync('python3', [IMPORT_CODEX, '--sheet', sheet, '--frames-dir', framesDir, '--base-out', basePng], { encoding: 'utf8' });
+  if (r.status !== 0) { log('import', 'fail', { err: (r.stderr || '').slice(-400) }); process.exit(1); }
+  let info = {};
+  try { info = JSON.parse((r.stdout || '').trim().split('\n').pop()); } catch { /* */ }
+  log('import', 'ok', { states: info.states, missing: info.missing });
+
+  // 2. generate the missing states from the imported pet's base — ONLY if asked
+  const gen = info.generatable || [];
+  if (o.generateMissing && gen.length) {
+    log('generate', 'start', { states: gen });
+    r = spawnSync('python3', [STRIP_PY, '--frames-dir', framesDir, '--base', basePng, '--states', gen.join(','), '--workers', '3'],
+      { stdio: ['ignore', 'inherit', 'inherit'] });
+    if (r.status !== 0) { log('generate', 'fail'); process.exit(1); }
+    log('generate', 'ok');
+  } else if (gen.length) {
+    log('generate', 'skipped', { message: `missing states aliased to idle: ${gen.join(', ')}` });
+  }
+
+  // 3. pack
+  log('pack', 'start');
+  r = spawnSync('python3', [PACK_PY, '--frames-dir', framesDir], { stdio: ['ignore', 'inherit', 'inherit'] });
+  if (r.status !== 0) { log('pack', 'fail'); process.exit(1); }
+  log('pack', 'ok');
+
+  // 4. pet.json
+  fs.writeFileSync(path.join(bundle, 'pet.json'), JSON.stringify({
+    id, displayName: name, description: desc, states: info.states || PET_STATES,
+    renderers: { 'ascii-green-sprites': { dir: 'frames', manifest: 'anim.json', chromaKey: '#00b140',
+      note: 'imported from a Codex atlas' + (o.generateMissing ? ' + generated missing states' : '') } },
+  }, null, 2));
+  log('done', 'ok', { id, bundle });
+}
+
 function printHelp() {
   process.stdout.write(`familiar — a lean ambient-pet prototype (front-end for ambisphere)
 
@@ -475,6 +549,7 @@ usage:
   familiar pets                             list available pet bundles
   familiar overlay [pet] [--restart|--stop] launch the native desktop pet (auto-builds first run)
   familiar hatch --name N --prompt "..."    hatch a new pet (base -> strips -> sheet); [--reference img]...
+  familiar import-codex --path <dir|sheet>  import a Codex pet atlas; [--generate-missing] to fill gaps
   familiar demo                             emit a scripted session (watch in another pane)
 
 canonical events (semantic): session.start prompt.submit think tool.start tool.end
@@ -514,6 +589,7 @@ try {
     case 'pets': { process.stdout.write(listPets().join('\n') + '\n'); break; }
     case 'overlay': { launchOverlay(rest); break; }
     case 'hatch': { hatchPet(rest); break; }
+    case 'import-codex': { importCodex(rest); break; }
     case 'demo': { runDemo(); break; }
     case 'help': case undefined: { printHelp(); break; }
     default: { process.stderr.write(`unknown command: ${cmd}\n`); printHelp(); process.exit(2); }
