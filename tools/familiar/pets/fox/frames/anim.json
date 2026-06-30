@@ -11,7 +11,15 @@
         "idle.5"
       ],
       "frameMs": 180,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        280,
+        110,
+        110,
+        140,
+        140,
+        320
+      ]
     },
     "thinking": {
       "frames": [
@@ -23,7 +31,15 @@
         "thinking.5"
       ],
       "frameMs": 200,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        150,
+        150,
+        150,
+        150,
+        150,
+        280
+      ]
     },
     "working": {
       "frames": [
@@ -35,7 +51,15 @@
         "working.5"
       ],
       "frameMs": 120,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        120,
+        120,
+        120,
+        120,
+        120,
+        220
+      ]
     },
     "reviewing": {
       "frames": [
@@ -47,7 +71,15 @@
         "reviewing.5"
       ],
       "frameMs": 180,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        150,
+        150,
+        150,
+        150,
+        150,
+        280
+      ]
     },
     "awaiting-human": {
       "frames": [
@@ -59,7 +91,15 @@
         "awaiting-human.5"
       ],
       "frameMs": 170,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        150,
+        150,
+        150,
+        150,
+        150,
+        260
+      ]
     },
     "succeeded": {
       "frames": [
@@ -69,7 +109,13 @@
         "succeeded.3"
       ],
       "frameMs": 140,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        140,
+        140,
+        140,
+        280
+      ]
     },
     "milestone": {
       "frames": [
@@ -80,7 +126,14 @@
         "milestone.4"
       ],
       "frameMs": 150,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        280
+      ]
     },
     "failed": {
       "frames": [
@@ -94,7 +147,17 @@
         "failed.7"
       ],
       "frameMs": 150,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        240
+      ]
     },
     "errored": {
       "frames": [
@@ -108,7 +171,17 @@
         "errored.7"
       ],
       "frameMs": 150,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        140,
+        240
+      ]
     },
     "rate-limited": {
       "frames": [
@@ -120,7 +193,15 @@
         "rate-limited.5"
       ],
       "frameMs": 170,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        150,
+        150,
+        150,
+        150,
+        150,
+        260
+      ]
     },
     "sleeping": {
       "frames": [
@@ -132,7 +213,15 @@
         "sleeping.5"
       ],
       "frameMs": 360,
-      "mode": "loop"
+      "mode": "loop",
+      "durations": [
+        560,
+        220,
+        220,
+        280,
+        280,
+        640
+      ]
     }
   }
 }

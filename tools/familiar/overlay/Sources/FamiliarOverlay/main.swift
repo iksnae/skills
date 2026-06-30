@@ -65,7 +65,7 @@ func fallbackState(_ s: String) -> String {
 
 // MARK: - Animation bundle (renderer assets, separate + swappable from manifest)
 
-struct AnimSpec { let frames: [String]; let frameMs: Double }
+struct AnimSpec { let frames: [String]; let durations: [Double] }
 
 final class AnimManifest {
     private var states: [String: AnimSpec] = [:]
@@ -82,7 +82,14 @@ final class AnimManifest {
         if let s = obj["states"] as? [String: Any] {
             for (k, v) in s {
                 guard let e = v as? [String: Any], let fr = e["frames"] as? [String] else { continue }
-                states[k] = AnimSpec(frames: fr, frameMs: (e["frameMs"] as? Double) ?? defaultMs)
+                let fms = (e["frameMs"] as? Double) ?? defaultMs
+                // Per-frame durations (Codex carries these; long holds + a quick
+                // blink read as calm). Fall back to a uniform frameMs.
+                var durs = Array(repeating: fms, count: fr.count)
+                if let arr = e["durations"] as? [NSNumber], arr.count == fr.count {
+                    durs = arr.map { $0.doubleValue }
+                }
+                states[k] = AnimSpec(frames: fr, durations: durs)
             }
         }
     }
@@ -94,11 +101,11 @@ final class AnimManifest {
         guard let dir = dir else { return nil }
         let direct = "\(state).png"
         if FileManager.default.fileExists(atPath: dir.appendingPathComponent(direct).path) {
-            return AnimSpec(frames: [direct], frameMs: defaultMs)
+            return AnimSpec(frames: [direct], durations: [defaultMs])
         }
         let fb = "\(fallbackState(state)).png"
         if FileManager.default.fileExists(atPath: dir.appendingPathComponent(fb).path) {
-            return AnimSpec(frames: [fb], frameMs: defaultMs)
+            return AnimSpec(frames: [fb], durations: [defaultMs])
         }
         return nil
     }
@@ -261,7 +268,8 @@ final class PetView: NSView {
     private let labelLayer = CATextLayer()
 
     private var frames: [CGImage] = []
-    private var frameMs: Double = 200
+    private var durations: [Double] = [200]
+    private var totalMs: Double = 200
     private var phase: CGFloat = 0
     private var attention = "none"
     private var usingFrames = false
@@ -312,7 +320,7 @@ final class PetView: NSView {
         labelLayer.frame = CGRect(x: 0, y: 12, width: cw, height: 18)
     }
 
-    func show(state: String, attention: String, frames: [CGImage], frameMs: Double) {
+    func show(state: String, attention: String, frames: [CGImage], durations: [Double]) {
         self.attention = attention
         if frames.isEmpty {
             usingFrames = false
@@ -328,15 +336,12 @@ final class PetView: NSView {
         usingFrames = true
         card.isHidden = true
         imageLayer.isHidden = false
-        // only reset the strip when the frame set actually changes
-        if frames.count != self.frames.count {
-            self.frames = frames
-            self.frameMs = max(40, frameMs)
-            lastFrameIndex = -1
-        } else {
-            self.frames = frames
-            self.frameMs = max(40, frameMs)
-        }
+        let durs = durations.count == frames.count ? durations.map { max(40, $0) }
+                                                    : Array(repeating: 200.0, count: frames.count)
+        if frames.count != self.frames.count { lastFrameIndex = -1 }   // reset only on a new set
+        self.frames = frames
+        self.durations = durs
+        self.totalMs = max(1, durs.reduce(0, +))
     }
 
     private func tick() {
@@ -348,7 +353,14 @@ final class PetView: NSView {
         CATransaction.setDisableActions(true)
 
         if usingFrames && !frames.isEmpty {
-            let idx = Int((Double(phase) * 1000.0) / frameMs) % frames.count
+            // Walk the per-frame durations: long holds + a quick blink read calm.
+            var t = (Double(phase) * 1000.0).truncatingRemainder(dividingBy: totalMs)
+            var idx = 0
+            for (i, d) in durations.enumerated() {
+                if t < d { idx = i; break }
+                t -= d
+                idx = i
+            }
             if idx != lastFrameIndex {
                 lastFrameIndex = idx
                 imageLayer.contents = frames[idx]
@@ -409,22 +421,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func update() {
         let r = reader.read()
-        if r.state != current {
-            current = r.state
-            if let spec = anim.spec(for: r.state) {
-                petView.show(state: r.state, attention: r.attention,
-                             frames: frameCache.cgFrames(spec.frames), frameMs: spec.frameMs)
-            } else {
-                petView.show(state: r.state, attention: r.attention, frames: [], frameMs: 200)
-            }
+        if r.state != current { current = r.state }
+        if let spec = anim.spec(for: r.state) {
+            petView.show(state: r.state, attention: r.attention,
+                         frames: frameCache.cgFrames(spec.frames), durations: spec.durations)
         } else {
-            // refresh attention without resetting the running animation
-            if let spec = anim.spec(for: r.state) {
-                petView.show(state: r.state, attention: r.attention,
-                             frames: frameCache.cgFrames(spec.frames), frameMs: spec.frameMs)
-            } else {
-                petView.show(state: r.state, attention: r.attention, frames: [], frameMs: 200)
-            }
+            petView.show(state: r.state, attention: r.attention, frames: [], durations: [200])
         }
     }
 }
