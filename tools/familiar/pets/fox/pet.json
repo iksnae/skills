@@ -1,26 +1,25 @@
 {
   "id": "fox",
-  "displayName": "Fox",
-  "description": "A cheerful pixel-art fox \u2014 hatched via Codex's proven pipeline, driven by familiar's semantic states.",
+  "displayName": "fox",
+  "description": "a cute chibi fox mascot: bright orange fur, cream-white chest, muzzle, inner ears and tail-tip, big round dark friendly eyes, small triangular ears, a fluffy curled tail; round and approachable, seated and facing forward",
   "states": [
     "idle",
     "thinking",
     "working",
     "reviewing",
     "awaiting-human",
-    "succeeded",
     "milestone",
     "failed",
-    "errored",
-    "rate-limited",
-    "sleeping"
+    "sleeping",
+    "held",
+    "poked"
   ],
   "renderers": {
     "ascii-green-sprites": {
       "dir": "frames",
       "manifest": "anim.json",
-      "chromaKey": "#0000FF",
-      "note": "Codex-hatched atlas; frames already transparent (key is a no-op)"
+      "chromaKey": "#00b140",
+      "note": "hatched via pet-hatch strip pipeline"
     }
   }
 }
