@@ -276,6 +276,7 @@ final class PetView: NSView {
         layer?.addSublayer(content)
 
         imageLayer.contentsGravity = .resizeAspect
+        imageLayer.contentsScale = scale  // render frames at native retina px, not 1x
         imageLayer.isHidden = true
         content.addSublayer(imageLayer)
 
@@ -373,6 +374,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dir = framesDirectory()
         anim = AnimManifest(dir)
         frameCache = FrameCache(dir)
+        let src = frameCache.sheet.map { "sheet (\($0.rects.count) frames)" } ?? "discrete PNGs"
+        FileHandle.standardError.write(Data("familiar-overlay: frames=\(dir?.path ?? "none") source=\(src)\n".utf8))
         let size = NSSize(width: 220, height: 200)
 
         panel = NSPanel(contentRect: NSRect(origin: .zero, size: size),
