@@ -76,6 +76,8 @@ Every skill has a full page covering usage, behavior, outputs — and a **real d
 
 ### Ambient & presence
 
+[![familiar — an ambient desktop pet that reacts to your agent's activity](docs/assets/familiar-hero.png)](docs/familiar.md)
+
 | Skill | What it does |
 |---|---|
 | [familiar](docs/familiar.md) | A cross-harness ambient desktop pet that reacts to your agent's activity — semantic events → a pure reducer → renderer-agnostic pets (macOS overlay or terminal). |
