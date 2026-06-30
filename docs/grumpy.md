@@ -2,7 +2,7 @@
 
 > The skeptical senior reviewer who has seen this movie before — point it at code, a diff, a plan, an API, a schema, or an agent's output and it tells you where this is going to hurt later.
 
-![grumpy review flow](assets/grumpy.png)
+![Grumpy — a weathered senior reviewer at a warm-lit desk, arms crossed, eyebrow raised at your code](assets/grumpy-hero.png)
 
 ## What it does
 

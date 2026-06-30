@@ -5,6 +5,21 @@ is both human reference and machine input: the bundled `image-generate` script
 reads the [Image voice](#image-voice) section automatically when run from this
 repo.
 
+## Guiding light
+
+**Sell the value, not the mechanism.** Every artifact — prose, diagram, image —
+leads with what the skill is *worth* to the person using it, not a walkthrough of
+how it works internally. These are tools we use daily and share with others; the
+brand should feel human, lived-in, and inviting, never sterile or like a vendor
+architecture slide. When in doubt, show the payoff, not the pipeline.
+
+Two registers serve this:
+
+- **Diagrams** (mermaid) carry structure when structure *is* the value — kept
+  quiet and flat per the [diagram rules](#diagram-rules).
+- **Imagery** carries meaning and personality per the [image voice](#image-voice)
+  — warm, characterful, honest.
+
 ## Palette
 
 | Token | Hex | Use |
@@ -20,13 +35,18 @@ repo.
 | warn | `#e8c040` | caution states |
 | err | `#c06060` | fail states |
 
-## Rules
+## Diagram rules
+
+These govern **mermaid diagrams** — the structural register. Imagery has its own
+latitude (see [Image voice](#image-voice)).
 
 - Flat fills only. **No gradients, no shadows, no glow, no rounded corners** (2px max, rarely).
 - Depth comes from hairline borders (`#2a2a2a`), not elevation effects.
 - Monospace labels (JetBrains Mono or any ui-monospace), terse — under ~30 chars per line.
 - One or two `#FFCC00` elements per diagram, not five. The accent is a signal, not a wash.
 - Quiet terminal, not synthwave. 2am energy, no bloom.
+- A diagram earns its place only when structure *is* the value. If it's just
+  decoration or a how-it-works restatement, cut it — reach for imagery instead.
 
 ## Diagram theming (mermaid)
 
@@ -41,12 +61,49 @@ linkStyle <n> stroke:#FFCC00;
 
 ## Image voice
 
-Dark CRT terminal aesthetic on near-black `#0a0a0a`. Flat color only: surfaces
-`#161616`, hairline strokes `#2a2a2a`, text `#e8e8e8`, single yellow accent
-`#FFCC00` used sparingly. Monospace labels, terse. Diagrams and technical
-compositions only — no characters, scenes, or illustrations. No gradients, no
-shadows, no glow, no rounded corners, no neon or synthwave. Quiet terminal
-aesthetic.
+Brand imagery sells the **value** of a skill — what you get and why it's worth
+having — never a diagram of how it works. Lead with meaning and feeling, not
+mechanism. Editorial-illustration energy, warm and human, with a little wit.
+
+**Personification.** Skills with a human-named persona are drawn as a **recurring
+character** — one consistent, memorable figure that embodies the skill's value, so
+people recognize them across the set. The canonical roster lives in
+[Characters](#characters). Characters and scenes are welcome in imagery; they stay
+out of the structural diagrams.
+
+**Palette.** `#FFCC00` is the signature thread — keep it present in every image as
+a warm keylight, garment, prop, or accent, never absent. Beyond that, imagery may
+use a fuller, warmer range: lamplight, wood, deep teal night, real skin tones,
+soft depth and grain. Near-black `#0a0a0a` still grounds most compositions, but the
+light is warm, not clinical. This is a lit room at 2am, not a console readout.
+
+**Honesty.** Never fabricate specifics. No invented metrics, fake filenames, fake
+code, fake UI chrome, fake logs, or made-up product copy baked into the image. The
+art is evocative and metaphorical, not a faked screenshot. If a number, label, or
+line of code isn't real, it doesn't go in the picture — suggest it (a blurred
+printout, an unreadable terminal glow), don't forge it.
+
+**Composition.** Landscape by default (3:2) so heroes sit in a doc without breaking
+the page. One clear subject, generous breathing room, deliberate light. No neon, no
+synthwave, no gradient mush, no stock-render gloss. Stylized and crafted over
+photoreal.
+
+## Characters
+
+Canonical descriptions for personified skills. Reference for art direction — kept
+out of the auto-injected [Image voice](#image-voice) so each character's bio never
+bleeds into another's generation. Draw them consistently across appearances.
+
+- **Grumpy** (review) — a weathered senior developer, late 50s, salt-and-pepper
+  stubble, reading glasses pushed up, arms crossed, one eyebrow raised at your
+  code. Skeptical and seen-it-before, but secretly on your side. Lit by a warm
+  amber desk lamp in a dim room.
+- **Janitor** (cleanup) — a calm, unhurried custodian, sleeves rolled, leaning
+  easily on a mop in a room he has just made orderly. Quiet competence, no drama;
+  the satisfaction of a clean, safe space. Warm light from a doorway, amber accent
+  on his keychain or bucket.
+
+When a new personified skill ships, add its character here before generating art.
 
 ## Voice (prose)
 

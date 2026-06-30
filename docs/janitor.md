@@ -2,7 +2,7 @@
 
 > Clean the mess without making a bigger one — turn rough, tangled, or half-finished work into something smaller, clearer, and safer, one low-risk patch at a time.
 
-![janitor cleanup flow](assets/janitor.png)
+![Janitor — a calm custodian leaning on a mop in a room he's just made orderly](assets/janitor-hero.png)
 
 ## What it does
 
