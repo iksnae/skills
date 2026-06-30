@@ -208,6 +208,15 @@ func activeAnimScale() -> Double {
     return 1.5
 }
 
+// The online pet library (codex-pets.net or any self-hosted codex-pet-share
+// fork). config wins, then env, then the public default.
+func libraryHost() -> String {
+    let raw: String
+    if let s = readConfig()["libraryUrl"] as? String, !s.isEmpty { raw = s }
+    else { raw = ProcessInfo.processInfo.environment["FAMILIAR_LIBRARY"] ?? "https://codex-pets.net" }
+    return raw.hasSuffix("/") ? String(raw.dropLast()) : raw
+}
+
 // Resolve a pet bundle's sprite frames dir from its pet.json renderer `dir`.
 func petFramesDir(_ pet: String) -> URL? {
     guard let bundle = petBundle(pet) else { return nil }
@@ -697,10 +706,11 @@ struct SettingsView: View {
         TabView {
             GeneralTab().tabItem { Label("General", systemImage: "gearshape") }
             PetsTab().tabItem { Label("Pets", systemImage: "pawprint") }
+            LibraryTab().tabItem { Label("Library", systemImage: "square.grid.2x2") }
             CreatePetTab().tabItem { Label("Create", systemImage: "wand.and.stars") }
             ImportTab().tabItem { Label("Import", systemImage: "square.and.arrow.down") }
         }
-        .frame(width: 440, height: 360)
+        .frame(width: 460, height: 420)
     }
 }
 
@@ -773,6 +783,12 @@ final class Hatcher: ObservableObject {
         if generateMissing { sub.append("--generate-missing") }
         run(sub, startMessage: "Importing \(URL(fileURLWithPath: path).lastPathComponent)…"
             + (generateMissing ? " (generating missing states — a few minutes)" : ""))
+    }
+
+    func importCodexId(_ id: String, generateMissing: Bool) {
+        var sub = ["import-codex", "--id", id]
+        if generateMissing { sub.append("--generate-missing") }
+        run(sub, startMessage: "Importing “\(id)” from the library…")
     }
 
     private func run(_ sub: [String], startMessage: String) {
@@ -924,6 +940,139 @@ struct ImportTab: View {
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK { src = panel.urls.first }
     }
+}
+
+// MARK: - Library (browse codex-pets.net / any codex-pet-share fork)
+
+struct LibraryPet: Identifiable, Decodable {
+    let id: String
+    let displayName: String
+    let kind: String
+    let likeCount: Int?
+    let viewCount: Int?
+    let tags: [String]?
+    let previewUrl: String?
+}
+
+private struct LibraryResponse: Decodable {
+    let pets: [LibraryPet]
+    let total: Int
+    let page: Int
+    let totalPages: Int
+}
+
+// Fetches the library index from `<host>/api/pets` — the same contract the CLI
+// uses. Pure read; importing is delegated to the CLI via Hatcher.
+final class LibraryBrowser: ObservableObject {
+    @Published var pets: [LibraryPet] = []
+    @Published var loading = false
+    @Published var error: String?
+    @Published var total = 0
+    @Published var page = 1
+    @Published var totalPages = 1
+
+    func search(query: String, kind: String, sort: String, page: Int) {
+        guard var comps = URLComponents(string: libraryHost() + "/api/pets") else { return }
+        var items = [URLQueryItem(name: "sort", value: sort),
+                     URLQueryItem(name: "page", value: String(page)),
+                     URLQueryItem(name: "pageSize", value: "24")]
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !q.isEmpty { items.append(URLQueryItem(name: "q", value: q)) }
+        if !kind.isEmpty { items.append(URLQueryItem(name: "kind", value: kind)) }
+        comps.queryItems = items
+        guard let url = comps.url else { return }
+        loading = true; error = nil
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, err in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.loading = false
+                if let err = err { self.error = err.localizedDescription; return }
+                guard let data = data, let r = try? JSONDecoder().decode(LibraryResponse.self, from: data) else {
+                    self.error = "couldn't read \(libraryHost())"; return
+                }
+                self.pets = r.pets; self.total = r.total; self.page = r.page; self.totalPages = r.totalPages
+            }
+        }.resume()
+    }
+}
+
+struct LibraryTab: View {
+    @StateObject private var browser = LibraryBrowser()
+    @StateObject private var runner = Hatcher()
+    @State private var query = ""
+    @State private var kind = ""
+    @State private var sort = "popular"
+    @State private var generateMissing = false
+
+    private let kinds = ["": "Any kind", "object": "Object", "animal": "Animal", "person": "Person", "creature": "Creature"]
+    private let sorts = ["popular": "Popular", "new": "Newest", "views": "Most viewed", "random": "Random"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                TextField("Search the pet library…", text: $query, onCommit: runSearch)
+                Button("Search", action: runSearch).disabled(browser.loading)
+            }
+            HStack {
+                Picker("", selection: $kind) { ForEach(["", "object", "animal", "person", "creature"], id: \.self) { Text(kinds[$0] ?? $0).tag($0) } }
+                    .labelsHidden().frame(width: 130)
+                Picker("", selection: $sort) { ForEach(["popular", "new", "views", "random"], id: \.self) { Text(sorts[$0] ?? $0).tag($0) } }
+                    .labelsHidden().frame(width: 130)
+                Spacer()
+                Toggle("fill gaps", isOn: $generateMissing).font(.caption)
+                    .help("Generate the states a Codex pet lacks (slower, uses image generation). Off = missing states reuse idle.")
+            }
+            if let e = browser.error { Text(e).font(.caption).foregroundStyle(.red) }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(browser.pets) { pet in
+                        HStack(spacing: 8) {
+                            AsyncImage(url: pet.previewUrl.flatMap(URL.init)) { img in
+                                img.resizable().interpolation(.none).scaledToFit()
+                            } placeholder: { Color.gray.opacity(0.12) }
+                            .frame(width: 36, height: 36)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(pet.displayName).font(.callout).lineLimit(1)
+                                Text("\(pet.kind)  ♥\(pet.likeCount ?? 0)  👁\(pet.viewCount ?? 0)")
+                                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Button(runner.running ? "…" : "Import") {
+                                runner.importCodexId(pet.id, generateMissing: generateMissing)
+                            }.controlSize(.small).disabled(runner.running)
+                        }
+                        .padding(.vertical, 1)
+                    }
+                }
+            }
+            .frame(maxHeight: .infinity)
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(.gray.opacity(0.15)))
+            if browser.total > 0 {
+                HStack {
+                    Text("\(browser.total) pets · page \(browser.page)/\(browser.totalPages)")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("‹") { browser.search(query: query, kind: kind, sort: sort, page: max(1, browser.page - 1)) }
+                        .disabled(browser.page <= 1).controlSize(.small)
+                    Button("›") { browser.search(query: query, kind: kind, sort: sort, page: browser.page + 1) }
+                        .disabled(browser.page >= browser.totalPages).controlSize(.small)
+                }
+            }
+            if !runner.lines.isEmpty {
+                HStack(spacing: 6) {
+                    Text(runner.lines.last ?? "").font(.caption2.monospaced()).lineLimit(1)
+                    if let id = runner.newPet, !runner.running {
+                        Button("Use “\(id)”") { writeConfig(["pet": id]) }.controlSize(.small)
+                    }
+                }
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear { if browser.pets.isEmpty && !browser.loading { runSearch() } }
+    }
+
+    private func runSearch() { browser.search(query: query, kind: kind, sort: sort, page: 1) }
 }
 
 // MARK: - App
