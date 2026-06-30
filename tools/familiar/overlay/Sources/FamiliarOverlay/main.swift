@@ -21,7 +21,7 @@ import UniformTypeIdentifiers
 
 // MARK: - State (read side)
 
-struct Resolved { let state: String; let attention: String; let message: String? }
+struct Resolved { let state: String; let attention: String; let message: String?; let tool: String? }
 
 final class StateReader {
     let url: URL
@@ -35,7 +35,7 @@ final class StateReader {
     func read() -> Resolved {
         guard let data = try? Data(contentsOf: url),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return Resolved(state: "idle", attention: "none", message: nil) }
+        else { return Resolved(state: "idle", attention: "none", message: nil, tool: nil) }
         let base = (obj["base"] as? String) ?? "idle"
         var state = base
         if let flash = obj["flash"] as? [String: Any],
@@ -51,7 +51,15 @@ final class StateReader {
            Date().timeIntervalSince1970 * 1000.0 < until {
             message = text
         }
-        return Resolved(state: state, attention: Self.attention(for: state), message: message)
+        // `tool` indicator: the active tool category, for a glyph badge.
+        var tool: String? = nil
+        if let t = obj["tool"] as? [String: Any],
+           let cat = t["cat"] as? String,
+           let until = t["until"] as? Double,
+           Date().timeIntervalSince1970 * 1000.0 < until {
+            tool = cat
+        }
+        return Resolved(state: state, attention: Self.attention(for: state), message: message, tool: tool)
     }
 
     static func attention(for s: String) -> String {
@@ -239,6 +247,36 @@ func cgImage(of ns: NSImage) -> CGImage? {
     return ns.cgImage(forProposedRect: &rect, context: nil, hints: nil)
 }
 
+// A coarse tool category -> an SF Symbol name for the activity badge.
+func toolSymbolName(_ cat: String) -> String {
+    switch cat {
+    case "shell": return "terminal.fill"
+    case "edit": return "pencil"
+    case "read": return "book.fill"
+    case "search": return "magnifyingglass"
+    case "web": return "globe"
+    case "agent": return "person.2.fill"
+    case "mcp": return "puzzlepiece.fill"
+    default: return "wrench.and.screwdriver.fill"
+    }
+}
+
+// A white-tinted SF Symbol rendered to a CGImage (the layer scales it to fit).
+func symbolCG(_ name: String, point: CGFloat) -> CGImage? {
+    let cfg = NSImage.SymbolConfiguration(pointSize: point, weight: .semibold)
+    guard let base = NSImage(systemSymbolName: name, accessibilityDescription: nil),
+          let sym = base.withSymbolConfiguration(cfg) else { return nil }
+    let out = NSImage(size: sym.size)
+    out.lockFocus()
+    NSColor.white.set()
+    let r = NSRect(origin: .zero, size: sym.size)
+    sym.draw(in: r)
+    r.fill(using: .sourceAtop)
+    out.unlockFocus()
+    var rect = r
+    return out.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+}
+
 // An optional packed sprite sheet: one decode, frames cropped by name. Derived
 // from the discrete frames (sheet.json maps name -> pixel rect, top-left origin
 // matching the packer). Present => the renderer crops the sheet; absent => it
@@ -327,6 +365,10 @@ final class PetView: NSView {
     private let card = CALayer()
     private let faceLayer = CATextLayer()
     private let labelLayer = CATextLayer()
+    private let badge = CALayer()        // tool-activity indicator (circle + glyph)
+    private let badgeIcon = CALayer()
+    private var badgeCat: String? = nil
+    private var symbolCache: [String: CGImage] = [:]
 
     // Three frame sources; `interaction` decides which feeds the player. The
     // agent source comes from state.json; held/poked are local interaction
@@ -388,6 +430,22 @@ final class PetView: NSView {
         labelLayer.foregroundColor = NSColor(white: 0.8, alpha: 1).cgColor
         card.addSublayer(labelLayer)
 
+        // Tool badge: a small dark circle with a white glyph, lower-right of the
+        // pet. Sits above the sprite; fades in/out as the tool indicator changes.
+        badge.backgroundColor = NSColor(srgbRed: 0.16, green: 0.17, blue: 0.21, alpha: 0.97).cgColor
+        badge.borderColor = NSColor(white: 1, alpha: 0.38).cgColor
+        badge.borderWidth = 1.5
+        badge.opacity = 0
+        badge.contentsScale = scale
+        badge.shadowColor = NSColor.black.cgColor   // separate it from any backdrop
+        badge.shadowOpacity = 0.55
+        badge.shadowRadius = 3
+        badge.shadowOffset = CGSize(width: 0, height: -1)
+        badgeIcon.contentsGravity = .resizeAspect
+        badgeIcon.contentsScale = scale
+        badge.addSublayer(badgeIcon)
+        content.addSublayer(badge)
+
         Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in self?.tick() }
     }
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -400,6 +458,30 @@ final class PetView: NSView {
         card.frame = CGRect(x: (bounds.width - cw) / 2, y: (bounds.height - ch) / 2, width: cw, height: ch)
         faceLayer.frame = CGRect(x: 0, y: ch - 56, width: cw, height: 40)
         labelLayer.frame = CGRect(x: 0, y: 12, width: cw, height: 18)
+        let bs = bounds.width * 0.26                       // badge scales with the pet
+        badge.frame = CGRect(x: bounds.width * 0.62, y: bounds.height * 0.05, width: bs, height: bs)
+        badge.cornerRadius = bs / 2
+        badgeIcon.frame = badge.bounds.insetBy(dx: bs * 0.26, dy: bs * 0.26)
+    }
+
+    // Show/swap/hide the tool badge for the current tool category (nil = hide).
+    func showBadge(_ cat: String?) {
+        if cat != badgeCat {
+            badgeCat = cat
+            if let cat = cat {
+                if let img = symbolCache[cat] ?? symbolCG(toolSymbolName(cat), point: 30) {
+                    symbolCache[cat] = img
+                    badgeIcon.contents = img
+                }
+            }
+        }
+        let target: Float = (cat != nil) ? 1 : 0
+        if badge.opacity != target {
+            let a = CABasicAnimation(keyPath: "opacity")
+            a.fromValue = badge.opacity; a.toValue = target; a.duration = 0.18
+            badge.add(a, forKey: "fade")
+            badge.opacity = target
+        }
     }
 
     func show(state: String, attention: String, frames: [CGImage], durations: [Double]) {
@@ -928,6 +1010,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             petView.show(state: r.state, attention: r.attention, frames: [], durations: [200])
         }
+        petView.showBadge(r.tool)
         showBubble(r.message)
     }
 

@@ -104,8 +104,12 @@ function fold(events) {
   let base = 'sleeping';   // before any session has started
   let flash = null;        // { state, until }  — `until` is a value, not a comparison
   let message = null;      // { text, until }   — a transient speech bubble (own channel)
+  let tool = null;         // { cat, until }    — the active tool, for a visual badge
   let lastType = null;
   let seq = 0;
+  // events that mean "no tool is running" — clear the badge.
+  const CLEARS_TOOL = new Set(['turn.stop', 'await.input', 'await.approval',
+    'prompt.submit', 'session.start', 'session.end', 'review']);
   for (const ev of events) {
     seq++;
     lastType = ev.type;
@@ -125,8 +129,18 @@ function fold(events) {
         message = { text: text.slice(0, 240), until: ev.ts + ttl };
       }
     }
+    // `tool` indicator: a tool.* event carrying a category lights the badge and
+    // KEEPS it lit through the working period (each event refreshes the window,
+    // showing the current/last tool). A turn/await/session boundary clears it.
+    // The long TTL is only a safety net for a turn that never stops. Render-time
+    // decay keeps the fold pure.
+    const cat = ev.data && typeof ev.data === 'object' ? ev.data.tool : null;
+    if (ev.type === 'tool.start' || ev.type === 'tool.end') {
+      const c = cat || (tool && tool.cat);
+      if (c) tool = { cat: c, until: ev.ts + 45000 };
+    } else if (CLEARS_TOOL.has(ev.type)) tool = null;
   }
-  return { base, flash, message, seq, lastType };
+  return { base, flash, message, tool, seq, lastType };
 }
 
 function writeState(s) {
@@ -157,6 +171,7 @@ function resolve(s, now = nowMs()) {
     base: s.base || 'idle',
     flashing: !!(s.flash && now < s.flash.until),
     message: (s.message && now < s.message.until) ? s.message.text : null,
+    tool: (s.tool && now < s.tool.until) ? s.tool.cat : null,
   };
 }
 
@@ -391,6 +406,19 @@ function deriveBash(p) {
   return {};
 }
 
+// Map a host tool name -> a coarse category the renderer has a glyph for.
+function toolCategory(name) {
+  const n = String(name || '');
+  if (n.startsWith('mcp__')) return 'mcp';
+  if (/^(Bash|BashOutput|KillShell|KillBash)$/.test(n)) return 'shell';
+  if (/^(Edit|Write|MultiEdit|NotebookEdit)$/.test(n)) return 'edit';
+  if (n === 'Read') return 'read';
+  if (/^(Grep|Glob|LS)$/.test(n)) return 'search';
+  if (/^(WebFetch|WebSearch)$/.test(n)) return 'web';
+  if (n === 'Task' || n === 'Agent' || n.endsWith('Agent')) return 'agent';
+  return 'tool';
+}
+
 function deriveFromHook(canon, p) {
   switch (canon) {
     case 'prompt.submit': return { message: pick(SAY.ack) };
@@ -417,7 +445,12 @@ function runHook(rest) {
       if (raw && raw.trim()) p = JSON.parse(raw);
     }
   } catch { /* no/invalid stdin — fall back to the bare event */ }
-  if (canon) emit(canon);
+  // Attach the tool category to tool.* events so the reducer can drive the badge.
+  let data;
+  if ((canon === 'tool.start' || canon === 'tool.end') && p && p.tool_name) {
+    data = { tool: toolCategory(p.tool_name) };
+  }
+  if (canon) emit(canon, data);
   let d = {};
   try { d = deriveFromHook(canon, p) || {}; } catch { d = {}; }
   if (d.event) emit(d.event);
