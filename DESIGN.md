@@ -102,6 +102,13 @@ bleeds into another's generation. Draw them consistently across appearances.
   easily on a mop in a room he has just made orderly. Quiet competence, no drama;
   the satisfaction of a clean, safe space. Warm light from a doorway, amber accent
   on his keychain or bucket.
+- **DocCtor** (Apple DocC documentation) — a warm, attentive physician for
+  documentation: a doctor in a soft white coat, reading glasses, listening
+  through a stethoscope to an open technical book or framework whose pages fan
+  out like a healthy chart. Unhurried, reassuring, precise — the sense that your
+  docs are in careful hands and will come out well-structured. Warm amber
+  examination-lamp light in a calm study; the `#FFCC00` accent lives in the lamp
+  glow, a bookmark ribbon, or the coat's trim.
 
 When a new personified skill ships, add its character here before generating art.
 
